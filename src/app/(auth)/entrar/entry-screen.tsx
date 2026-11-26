@@ -43,7 +43,7 @@ export function EntryScreen() {
   const tB = db?.tenants[DEMO_TENANT_B];
 
   return (
-    <div className="grid min-h-dvh lg:grid-cols-[1.05fr_1fr]">
+    <div className="grid min-h-dvh grid-cols-1 lg:grid-cols-[1.05fr_1fr]">
       <section className="bg-brand-gradient relative overflow-hidden px-6 pt-8 pb-10 text-white sm:px-10 lg:flex lg:flex-col lg:justify-between lg:p-14">
         <Logo light />
         <div className="mt-10 max-w-xl lg:mt-0">

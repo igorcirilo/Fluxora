@@ -1,0 +1,65 @@
+# Fluxora — produção futura em VPS (Coolify ou docker compose). PostgreSQL sem porta pública.
+# Segredos via variáveis do ambiente/Coolify (nunca versionados). Ver docs/DEPLOY.md.
+name: fluxora
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?defina POSTGRES_SUPERUSER_PASSWORD}
+      FLUXORA_OWNER_PASSWORD: ${FLUXORA_OWNER_PASSWORD:?defina FLUXORA_OWNER_PASSWORD}
+      FLUXORA_APP_PASSWORD: ${FLUXORA_APP_PASSWORD:?defina FLUXORA_APP_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./deploy/postgres/10-init-roles.sh:/docker-entrypoint-initdb.d/10-init-roles.sh:ro
+      - ./deploy/postgres/init-roles.sql:/fluxora/init-roles.sql:ro
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d fluxora"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 1g }
+    logging: &logging
+      driver: json-file
+      options: { max-size: "10m", max-file: "5" }
+
+  migrate:
+    build: { context: ., target: migrator }
+    restart: "no"
+    environment:
+      DATABASE_URL_MIGRATOR: postgres://fluxora_owner:${FLUXORA_OWNER_PASSWORD}@db:5432/fluxora
+    depends_on:
+      db: { condition: service_healthy }
+    networks: [internal]
+    logging: *logging
+
+  app:
+    build: { context: ., target: runner }
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://fluxora_app:${FLUXORA_APP_PASSWORD}@db:5432/fluxora
+      NEXT_PUBLIC_DEMO_MODE: ${NEXT_PUBLIC_DEMO_MODE:-1}
+      FISCAL_PROVIDER: ${FISCAL_PROVIDER:-disabled}
+      BILLING_PROVIDER: ${BILLING_PROVIDER:-disabled}
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    # Somente loopback: o proxy TLS (Coolify/Traefik/Caddy) publica 80/443.
+    ports: ["127.0.0.1:${APP_PORT:-3000}:3000"]
+    networks: [internal, web]
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 768m }
+    logging: *logging
+
+volumes:
+  pgdata:
+
+networks:
+  internal:
+    internal: true
+  web:
