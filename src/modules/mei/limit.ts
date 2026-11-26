@@ -87,13 +87,7 @@ export function grossRevenue(entries: readonly RevenueEntry[], openedOn: BizDate
   return { gross: gross - reversals, reversals };
 }
 
-export function limitReport(params: {
-  entries: readonly RevenueEntry[];
-  openedOn: BizDate;
-  year: number;
-  regime?: MeiRegime;
-  rules?: readonly TaxRule[];
-}): LimitReport {
+export function limitReport(params: { entries: readonly RevenueEntry[]; openedOn: BizDate; year: number; regime?: MeiRegime; rules?: readonly TaxRule[] }): LimitReport {
   const { entries, openedOn, year, regime = "mei-geral" } = params;
   const rule = resolveRule(regime, year, params.rules);
   const months = activeMonths(openedOn, year);

@@ -105,6 +105,12 @@ export function importHistoricalRevenue(state: TenantState, input: { competenceD
   assertBizDate(input.competenceDate);
   assertCents(input.amountCents);
   if (input.competenceDate < state.tenant.openedOn) throw new DomainError("BEFORE_OPENING_DATE", "Competência anterior à abertura.");
-  const r: RevenueEntry = { id: ctx.newId("rev"), kind: "historical_import", competenceDate: input.competenceDate, amountCents: input.amountCents, description: input.description || "Histórico importado" };
+  const r: RevenueEntry = {
+    id: ctx.newId("rev"),
+    kind: "historical_import",
+    competenceDate: input.competenceDate,
+    amountCents: input.amountCents,
+    description: input.description || "Histórico importado",
+  };
   return { ...state, revenues: [...state.revenues, r], audit: [...state.audit, audit(state, ctx, "revenue.import", "revenue", r.id)] };
 }

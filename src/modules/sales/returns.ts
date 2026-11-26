@@ -53,7 +53,17 @@ export function returnSale(state: TenantState, saleId: string, ctx: Ctx, reason 
   const titles: Title[] = state.titles.map((t) => (t.sourceId === sale.id && openCents(t) > 0 ? { ...t, cancelledAt: ctx.nowIso } : t));
   for (const t of state.titles.filter((x) => x.sourceId === sale.id)) {
     for (const s of t.settlements) {
-      refunds.push({ id: ctx.newId("mov"), accountId: s.accountId, date: ctx.today, direction: "out", amountCents: s.amountCents, category: "refund", description: `Reembolso parcela venda #${sale.number}`, sourceId: sale.id, reversalOf: s.movementId });
+      refunds.push({
+        id: ctx.newId("mov"),
+        accountId: s.accountId,
+        date: ctx.today,
+        direction: "out",
+        amountCents: s.amountCents,
+        category: "refund",
+        description: `Reembolso parcela venda #${sale.number}`,
+        sourceId: sale.id,
+        reversalOf: s.movementId,
+      });
     }
   }
 

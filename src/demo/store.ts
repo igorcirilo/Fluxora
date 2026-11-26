@@ -60,7 +60,10 @@ export class DemoStore {
   private listeners = new Set<() => void>();
   persistError: string | null = null;
 
-  constructor(private storage: KeyValueStorage | null, private clock: () => Date = () => new Date()) {}
+  constructor(
+    private storage: KeyValueStorage | null,
+    private clock: () => Date = () => new Date(),
+  ) {}
 
   load(): DemoDb {
     if (this.db) return this.db;

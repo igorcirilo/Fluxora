@@ -51,7 +51,18 @@ describe("PDV — checkout transacional", () => {
     const c = ctx();
     const r = checkout(
       seeded(),
-      { idempotencyKey: "mix-000001", items: [{ productId: "p1", quantity: 2 }, { productId: "svc", quantity: 1 }], discountCents: 400, payments: [{ method: "pix", amountCents: 3000 }, { method: "credito", amountCents: 4000 }] },
+      {
+        idempotencyKey: "mix-000001",
+        items: [
+          { productId: "p1", quantity: 2 },
+          { productId: "svc", quantity: 1 },
+        ],
+        discountCents: 400,
+        payments: [
+          { method: "pix", amountCents: 3000 },
+          { method: "credito", amountCents: 4000 },
+        ],
+      },
       c,
     );
     expect(r.sale.totalCents).toBe(7000);
@@ -65,7 +76,11 @@ describe("PDV — checkout transacional", () => {
   it("fiado exige cliente e gera título em aberto", () => {
     const c = ctx();
     expect(() => checkout(seeded(), { idempotencyKey: "fiado-0001", items: [{ productId: "p1", quantity: 1 }], payments: [{ method: "fiado", amountCents: 1200 }] }, c)).toThrow(/cliente/);
-    const r = checkout(seeded(), { idempotencyKey: "fiado-0002", customerId: "c1", creditDueDate: "2026-12-10", items: [{ productId: "p1", quantity: 1 }], payments: [{ method: "fiado", amountCents: 1200 }] }, c);
+    const r = checkout(
+      seeded(),
+      { idempotencyKey: "fiado-0002", customerId: "c1", creditDueDate: "2026-12-10", items: [{ productId: "p1", quantity: 1 }], payments: [{ method: "fiado", amountCents: 1200 }] },
+      c,
+    );
     expect(r.state.titles[0]).toMatchObject({ counterpartyId: "c1", dueDate: "2026-12-10" });
   });
 
@@ -99,7 +114,19 @@ describe("devolução", () => {
   it("estorna receita ligada, devolve estoque, reembolsa e cancela saldo em aberto", () => {
     const c = ctx();
     let s = openSession(seeded(), 0, c);
-    s = checkout(s, { idempotencyKey: "ret-000001", customerId: "c1", items: [{ productId: "p1", quantity: 2 }], payments: [{ method: "dinheiro", amountCents: 1000 }, { method: "fiado", amountCents: 1400 }] }, c).state;
+    s = checkout(
+      s,
+      {
+        idempotencyKey: "ret-000001",
+        customerId: "c1",
+        items: [{ productId: "p1", quantity: 2 }],
+        payments: [
+          { method: "dinheiro", amountCents: 1000 },
+          { method: "fiado", amountCents: 1400 },
+        ],
+      },
+      c,
+    ).state;
     const saleId = s.sales[0]!.id;
     s = returnSale(s, saleId, c);
     expect(s.sales[0]!.status).toBe("devolvida");

@@ -2,7 +2,7 @@ import { addDays, parts, todayBiz, type BizDate } from "@/modules/finance/dates"
 import { checkout } from "@/modules/sales/checkout";
 import { closeSession, drawerTransfer, expectedDrawer, openSession } from "@/modules/sales/cash-session";
 import { accountBalance } from "@/modules/finance/cash";
-import { addMovement, createTitles, settleTitle } from "@/modules/finance/ops";
+import { addMovement, createTitles, importHistoricalRevenue, settleTitle } from "@/modules/finance/ops";
 import { createProduct, moveStock, type ProductInput } from "@/modules/inventory/ops";
 import { ACCOUNT_BANK, ACCOUNT_DRAWER, emptyTenantState, type Ctx, type Tenant, type TenantState } from "@/modules/tenants/state";
 import { openCents } from "@/modules/finance/titles";
@@ -83,7 +83,13 @@ function build(profile: Profile, today: BizDate): TenantState {
   const c0 = mk(start, 8);
   s = { ...s, customers: customers(rand, 12, c0.nowIso), suppliers: [{ id: "for_1", name: "Distribuidora Exemplo (fictícia)", createdAt: c0.nowIso }] };
   s = addMovement(s, { accountId: ACCOUNT_BANK, date: start, direction: "in", amountCents: 350_000, category: "capital_contribution", description: "Aporte inicial do titular" }, c0);
-  s = { ...s, movements: [...s.movements, { id: "mov_open_drawer", accountId: ACCOUNT_DRAWER, date: start, direction: "in", amountCents: 20_000, category: "opening_balance", description: "Saldo inicial da gaveta" }] };
+  s = {
+    ...s,
+    movements: [
+      ...s.movements,
+      { id: "mov_open_drawer", accountId: ACCOUNT_DRAWER, date: start, direction: "in", amountCents: 20_000, category: "opening_balance", description: "Saldo inicial da gaveta" },
+    ],
+  };
   for (const p of profile.products) s = createProduct(s, p, c0);
   const productIds = s.products.map((p, i) => ({ id: p.id, weight: profile.products[i]!.weight, track: p.trackStock }));
 
@@ -97,10 +103,30 @@ function build(profile: Profile, today: BizDate): TenantState {
       // Despesas fixas e reposição mensais.
       if (profile.monthlyRent) s = addMovement(s, { accountId: ACCOUNT_BANK, date: day, direction: "out", amountCents: profile.monthlyRent, category: "expense", description: "Aluguel do ponto" }, c);
       s = addMovement(s, { accountId: ACCOUNT_BANK, date: day, direction: "out", amountCents: 18_000 + Math.floor(rand() * 9_000), category: "expense", description: "Energia e internet" }, c);
-      s = createTitles(s, { kind: "payable", description: "Compra de insumos", counterpartyId: "for_1", competenceDate: day, firstDueDate: addDays(day, 15), totalCents: profile.suppliesMonthly, installments: 2, category: "Fornecedor" }, c);
-      for (const p of s.products.filter((x) => x.trackStock)) s = moveStock(s, { productId: p.id, type: "purchase", quantity: 60 + Math.floor(rand() * 40), note: "Reposição mensal" }, c);
+      s = createTitles(
+        s,
+        {
+          kind: "payable",
+          description: "Compra de insumos",
+          counterpartyId: "for_1",
+          competenceDate: day,
+          firstDueDate: addDays(day, 15),
+          totalCents: profile.suppliesMonthly,
+          installments: 2,
+          category: "Fornecedor",
+        },
+        c,
+      );
+      const totalWeight = productIds.reduce((a, p) => a + p.weight, 0);
+      const avgUnits = ((profile.salesPerDay[0] + profile.salesPerDay[1]) / 2) * ((profile.itemsPerSale[0] + profile.itemsPerSale[1]) / 2) * 1.5 * 27;
+      for (const [idx, p] of s.products.entries()) {
+        if (!p.trackStock) continue;
+        const demand = (avgUnits * productIds[idx]!.weight) / totalWeight;
+        s = moveStock(s, { productId: p.id, type: "purchase", quantity: Math.max(3, Math.ceil(demand * (0.95 + rand() * 0.3))), note: "Reposição mensal" }, c);
+      }
     }
-    if (dom === 5 && day !== start) s = addMovement(s, { accountId: ACCOUNT_BANK, date: day, direction: "out", amountCents: profile.monthlyWithdrawal, category: "owner_withdrawal", description: "Retirada do titular" }, c);
+    if (dom === 5 && day !== start)
+      s = addMovement(s, { accountId: ACCOUNT_BANK, date: day, direction: "out", amountCents: profile.monthlyWithdrawal, category: "owner_withdrawal", description: "Retirada do titular" }, c);
     if (dom === 18) {
       const prev = month === 1 ? competenceKey(parts(day).year - 1, 12) : competenceKey(parts(day).year, month - 1);
       if (`${prev}-01` >= profile.tenant.openedOn.slice(0, 7) + "-01" && day < today) {
@@ -114,7 +140,12 @@ function build(profile: Profile, today: BizDate): TenantState {
       if (t.category === "Cartão" || t.category === "Fornecedor") {
         if (t.category === "Fornecedor" && t.dueDate > addDays(today, -3)) continue;
         s = settleTitle(s, { titleId: t.id, amountCents: openCents(t), date: day, accountId: ACCOUNT_BANK }, c);
-        if (t.category === "Cartão") s = addMovement(s, { accountId: ACCOUNT_BANK, date: day, direction: "out", amountCents: Math.max(1, Math.round(t.amountCents * 0.0299)), category: "fee", description: "Taxa da maquininha (fictícia)" }, c);
+        if (t.category === "Cartão")
+          s = addMovement(
+            s,
+            { accountId: ACCOUNT_BANK, date: day, direction: "out", amountCents: Math.max(1, Math.round(t.amountCents * 0.0299)), category: "fee", description: "Taxa da maquininha (fictícia)" },
+            c,
+          );
       } else if (t.category === "Fiado" && rand() < 0.04 && t.dueDate < addDays(today, -20)) {
         const amount = rand() < 0.5 ? openCents(t) : Math.max(1, Math.floor(openCents(t) / 2));
         s = settleTitle(s, { titleId: t.id, amountCents: amount, date: day, accountId: ACCOUNT_DRAWER }, c);
@@ -143,7 +174,11 @@ function build(profile: Profile, today: BizDate): TenantState {
         const customerId = method === "fiado" || rand() < 0.35 ? pick(rand, s.customers).id : undefined;
         const tendered = method === "dinheiro" ? Math.ceil(total / 1000) * 1000 + (rand() < 0.3 ? 1000 : 0) : undefined;
         try {
-          s = checkout(s, { idempotencyKey: `seed-${profile.seed}-${day}-${i}`, items, discountCents: discount, payments: [{ method, amountCents: total }], cashTenderedCents: tendered, customerId, date: day }, ci).state;
+          s = checkout(
+            s,
+            { idempotencyKey: `seed-${profile.seed}-${day}-${i}`, items, discountCents: discount, payments: [{ method, amountCents: total }], cashTenderedCents: tendered, customerId, date: day },
+            ci,
+          ).state;
         } catch {
           // Estoque insuficiente no dia: a venda simplesmente não ocorre (como na vida real).
         }
@@ -159,13 +194,57 @@ function build(profile: Profile, today: BizDate): TenantState {
     }
     day = addDays(day, 1);
   }
+  // Faturamento do ano anterior lançado como "histórico importado" (empresa que começou a usar o app depois).
+  const prevYear = parts(start).year - 1;
+  if (prevYear >= parts(profile.tenant.openedOn).year) {
+    const firstMonth = parts(profile.tenant.openedOn).year === prevYear ? parts(profile.tenant.openedOn).month : 1;
+    for (let m = firstMonth; m <= 12; m++) {
+      const d = `${prevYear}-${String(m).padStart(2, "0")}-01`;
+      s = importHistoricalRevenue(s, { competenceDate: d, amountCents: 480_000 + Math.floor(rand() * 160_000), description: `Histórico importado ${prevYear}-${String(m).padStart(2, "0")} (fictício)` }, mk(start, 8));
+    }
+  }
   // Uma conta a pagar futura e uma vencida para demonstrar alertas.
   const cf = mk(today, 9);
-  s = createTitles(s, { kind: "payable", description: "Manutenção de equipamento", counterpartyId: "for_1", competenceDate: today, firstDueDate: addDays(today, 6), totalCents: 42_000, installments: 1, category: "Serviços" }, cf);
-  s = createTitles(s, { kind: "payable", description: "Embalagens personalizadas", counterpartyId: "for_1", competenceDate: addDays(today, -20), firstDueDate: addDays(today, -2), totalCents: 18_900, installments: 1, category: "Fornecedor" }, cf);
+  s = createTitles(
+    s,
+    {
+      kind: "payable",
+      description: "Manutenção de equipamento",
+      counterpartyId: "for_1",
+      competenceDate: today,
+      firstDueDate: addDays(today, 6),
+      totalCents: 42_000,
+      installments: 1,
+      category: "Serviços",
+    },
+    cf,
+  );
+  s = createTitles(
+    s,
+    {
+      kind: "payable",
+      description: "Embalagens personalizadas",
+      counterpartyId: "for_1",
+      competenceDate: addDays(today, -20),
+      firstDueDate: addDays(today, -2),
+      totalCents: 18_900,
+      installments: 1,
+      category: "Fornecedor",
+    },
+    cf,
+  );
   s = {
     ...s,
-    accountantLinks: [{ id: "lnk_1", accountantName: "Mônica Exemplo (fictícia)", firm: "Escritório Contábil Exemplo", email: "contato@contabil.exemplo", scopes: ["read", "export"], grantedAt: `${start}T12:00:00.000Z` }],
+    accountantLinks: [
+      {
+        id: "lnk_1",
+        accountantName: "Mônica Exemplo (fictícia)",
+        firm: "Escritório Contábil Exemplo",
+        email: "contato@contabil.exemplo",
+        scopes: ["read", "export"],
+        grantedAt: `${start}T12:00:00.000Z`,
+      },
+    ],
     audit: s.audit.slice(-300),
   };
   return s;
@@ -178,20 +257,73 @@ export function seedDoceria(today: BizDate = todayBiz()): TenantState {
   const { year } = parts(today);
   return build(
     {
-      tenant: { id: DEMO_TENANT_A, name: "Aurora Doces Finos MEI (fictícia)", tradeName: "Doceria Aurora", openedOn: `${year - 2}-03-04`, regime: "mei-geral", segment: "comercio", city: "Recife", uf: "PE", allowNegativeStock: false, isDemo: true },
+      tenant: {
+        id: DEMO_TENANT_A,
+        name: "Aurora Doces Finos MEI (fictícia)",
+        tradeName: "Doceria Aurora",
+        openedOn: `${year - 2}-03-04`,
+        regime: "mei-geral",
+        segment: "comercio",
+        city: "Recife",
+        uf: "PE",
+        allowNegativeStock: false,
+        isDemo: true,
+      },
       products: [
-        { name: "Brigadeiro gourmet", sku: "BRIG-01", barcode: "7890000000011", category: "Doces", unit: "un", priceCents: 450, costCents: 160, minStock: 30, trackStock: true, initialStock: 120, weight: 8 },
-        { name: "Bolo de pote ninho com morango", sku: "BPOT-02", barcode: "7890000000028", category: "Bolos", unit: "un", priceCents: 1400, costCents: 520, minStock: 10, trackStock: true, initialStock: 40, weight: 6 },
+        {
+          name: "Brigadeiro gourmet",
+          sku: "BRIG-01",
+          barcode: "7890000000011",
+          category: "Doces",
+          unit: "un",
+          priceCents: 450,
+          costCents: 160,
+          minStock: 30,
+          trackStock: true,
+          initialStock: 120,
+          weight: 8,
+        },
+        {
+          name: "Bolo de pote ninho com morango",
+          sku: "BPOT-02",
+          barcode: "7890000000028",
+          category: "Bolos",
+          unit: "un",
+          priceCents: 1400,
+          costCents: 520,
+          minStock: 10,
+          trackStock: true,
+          initialStock: 40,
+          weight: 6,
+        },
         { name: "Torta de limão (fatia)", sku: "TORT-03", category: "Tortas", unit: "un", priceCents: 1200, costCents: 410, minStock: 8, trackStock: true, initialStock: 30, weight: 4 },
         { name: "Bolo inteiro chocolate 1,5 kg", sku: "BOLO-04", category: "Bolos", unit: "un", priceCents: 8900, costCents: 3200, minStock: 2, trackStock: true, initialStock: 6, weight: 1.2 },
         { name: "Café espresso", sku: "CAFE-05", category: "Bebidas", unit: "un", priceCents: 600, costCents: 140, minStock: 0, trackStock: false, weight: 5 },
         { name: "Cappuccino cremoso", sku: "CAPP-06", category: "Bebidas", unit: "un", priceCents: 1100, costCents: 320, minStock: 0, trackStock: false, weight: 3 },
-        { name: "Caixa presente 12 doces", sku: "CXPR-07", barcode: "7890000000073", category: "Presentes", unit: "cx", priceCents: 5400, costCents: 2100, minStock: 4, trackStock: true, initialStock: 15, weight: 1.5 },
+        {
+          name: "Caixa presente 12 doces",
+          sku: "CXPR-07",
+          barcode: "7890000000073",
+          category: "Presentes",
+          unit: "cx",
+          priceCents: 5400,
+          costCents: 2100,
+          minStock: 4,
+          trackStock: true,
+          initialStock: 15,
+          weight: 1.5,
+        },
         { name: "Encomenda festa (serviço)", sku: "ENCO-08", category: "Encomendas", unit: "un", priceCents: 25000, costCents: 9000, minStock: 0, trackStock: false, weight: 0.25 },
       ],
       salesPerDay: [4, 8],
       itemsPerSale: [1, 3],
-      methods: [["pix", 46], ["dinheiro", 18], ["debito", 16], ["credito", 15], ["fiado", 5]],
+      methods: [
+        ["pix", 46],
+        ["dinheiro", 18],
+        ["debito", 16],
+        ["credito", 15],
+        ["fiado", 5],
+      ],
       monthlyRent: 95_000,
       monthlyWithdrawal: 180_000,
       dasFictitious: 8_190,
@@ -206,18 +338,47 @@ export function seedDoceria(today: BizDate = todayBiz()): TenantState {
 export function seedStudio(today: BizDate = todayBiz()): TenantState {
   return build(
     {
-      tenant: { id: DEMO_TENANT_B, name: "Bela Forma Estética MEI (fictícia)", tradeName: "Studio Bela Forma", openedOn: addDays(today, -170).slice(0, 8) + "10", regime: "mei-geral", segment: "servicos", city: "Olinda", uf: "PE", allowNegativeStock: false, isDemo: true },
+      tenant: {
+        id: DEMO_TENANT_B,
+        name: "Bela Forma Estética MEI (fictícia)",
+        tradeName: "Studio Bela Forma",
+        openedOn: addDays(today, -170).slice(0, 8) + "10",
+        regime: "mei-geral",
+        segment: "servicos",
+        city: "Olinda",
+        uf: "PE",
+        allowNegativeStock: false,
+        isDemo: true,
+      },
       products: [
         { name: "Design de sobrancelhas", sku: "SERV-01", category: "Serviços", unit: "h", priceCents: 6000, costCents: 800, minStock: 0, trackStock: false, weight: 5 },
         { name: "Limpeza de pele", sku: "SERV-02", category: "Serviços", unit: "h", priceCents: 16500, costCents: 2500, minStock: 0, trackStock: false, weight: 3 },
         { name: "Massagem relaxante 50 min", sku: "SERV-03", category: "Serviços", unit: "h", priceCents: 14500, costCents: 1500, minStock: 0, trackStock: false, weight: 2.5 },
         { name: "Manicure e pedicure", sku: "SERV-04", category: "Serviços", unit: "h", priceCents: 7000, costCents: 900, minStock: 0, trackStock: false, weight: 4 },
-        { name: "Sérum facial 30 ml", sku: "PROD-05", barcode: "7890000000509", category: "Produtos", unit: "un", priceCents: 8900, costCents: 4100, minStock: 5, trackStock: true, initialStock: 20, weight: 1 },
+        {
+          name: "Sérum facial 30 ml",
+          sku: "PROD-05",
+          barcode: "7890000000509",
+          category: "Produtos",
+          unit: "un",
+          priceCents: 8900,
+          costCents: 4100,
+          minStock: 5,
+          trackStock: true,
+          initialStock: 20,
+          weight: 1,
+        },
         { name: "Kit spa para casa", sku: "PROD-06", category: "Produtos", unit: "cx", priceCents: 12900, costCents: 6200, minStock: 3, trackStock: true, initialStock: 8, weight: 0.5 },
       ],
       salesPerDay: [1, 3],
       itemsPerSale: [1, 2],
-      methods: [["pix", 55], ["credito", 20], ["debito", 15], ["dinheiro", 8], ["fiado", 2]],
+      methods: [
+        ["pix", 55],
+        ["credito", 20],
+        ["debito", 15],
+        ["dinheiro", 8],
+        ["fiado", 2],
+      ],
       monthlyRent: 70_000,
       monthlyWithdrawal: 150_000,
       dasFictitious: 8_590,
@@ -230,5 +391,16 @@ export function seedStudio(today: BizDate = todayBiz()): TenantState {
 }
 
 export function blankTenant(params: { id: string; tradeName: string; openedOn: BizDate; segment: Tenant["segment"] }): TenantState {
-  return emptyTenantState({ id: params.id, name: `${params.tradeName} (fictícia)`, tradeName: params.tradeName, openedOn: params.openedOn, regime: "mei-geral", segment: params.segment, city: "", uf: "", allowNegativeStock: false, isDemo: true });
+  return emptyTenantState({
+    id: params.id,
+    name: `${params.tradeName} (fictícia)`,
+    tradeName: params.tradeName,
+    openedOn: params.openedOn,
+    regime: "mei-geral",
+    segment: params.segment,
+    city: "",
+    uf: "",
+    allowNegativeStock: false,
+    isDemo: true,
+  });
 }

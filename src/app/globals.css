@@ -1,0 +1,196 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --bg: #f5f6fb;
+  --bg-elevated: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f0f2f8;
+  --border: #e4e7f0;
+  --border-strong: #cfd4e2;
+  --fg: #0e1121;
+  --fg-muted: #5a6077;
+  --fg-subtle: #8a90a6;
+  --brand: #5b4ff0;
+  --brand-strong: #4a3ee0;
+  --brand-soft: #eeecff;
+  --brand-fg: #ffffff;
+  --accent: #12b886;
+  --accent-soft: #e3f8f0;
+  --warn: #e8890c;
+  --warn-soft: #fff4e0;
+  --danger: #e5484d;
+  --danger-soft: #fdecec;
+  --info: #2f80ed;
+  --info-soft: #e8f1fe;
+  --ring: rgb(91 79 240 / 0.35);
+  --shadow-card: 0 1px 2px rgb(16 24 40 / 0.04), 0 1px 3px rgb(16 24 40 / 0.06);
+  --shadow-pop: 0 12px 32px -8px rgb(16 24 40 / 0.18), 0 4px 8px -4px rgb(16 24 40 / 0.08);
+  color-scheme: light;
+}
+
+.dark {
+  --bg: #0a0c16;
+  --bg-elevated: #10131f;
+  --surface: #131726;
+  --surface-2: #1a1f31;
+  --border: #252b40;
+  --border-strong: #343b55;
+  --fg: #eceef7;
+  --fg-muted: #a0a6bd;
+  --fg-subtle: #737a94;
+  --brand: #7c72ff;
+  --brand-strong: #9089ff;
+  --brand-soft: #221f45;
+  --brand-fg: #ffffff;
+  --accent: #2fd39c;
+  --accent-soft: #0f2b24;
+  --warn: #f5a524;
+  --warn-soft: #2e2210;
+  --danger: #ff6369;
+  --danger-soft: #331418;
+  --info: #5a9cff;
+  --info-soft: #13233d;
+  --ring: rgb(124 114 255 / 0.45);
+  --shadow-card: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-pop: 0 16px 40px -8px rgb(0 0 0 / 0.6);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-elevated: var(--bg-elevated);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-fg: var(--fg);
+  --color-muted: var(--fg-muted);
+  --color-subtle: var(--fg-subtle);
+  --color-brand: var(--brand);
+  --color-brand-strong: var(--brand-strong);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-fg: var(--brand-fg);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --shadow-card: var(--shadow-card);
+  --shadow-pop: var(--shadow-pop);
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-feature-settings: "cv11", "ss01";
+  text-rendering: optimizeLegibility;
+}
+
+* {
+  border-color: var(--border);
+}
+
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+.bg-brand-gradient {
+  background: radial-gradient(1200px 600px at 10% -10%, rgb(124 114 255 / 0.55), transparent 60%),
+    radial-gradient(900px 500px at 110% 10%, rgb(18 184 134 / 0.35), transparent 55%), linear-gradient(160deg, #17123f 0%, #0c0a24 60%, #07061a 100%);
+}
+
+.text-gradient {
+  background: linear-gradient(90deg, #a7a0ff, #6ee7c4);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@keyframes fx-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes fx-sheet {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: none;
+  }
+}
+@keyframes fx-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.animate-in {
+  animation: fx-in 0.25s ease-out both;
+}
+.animate-sheet {
+  animation: fx-sheet 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.animate-fade {
+  animation: fx-fade 0.2s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-in,
+  .animate-sheet,
+  .animate-fade {
+    animation: none;
+  }
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-area,
+  .print-area * {
+    visibility: visible;
+  }
+  .print-area {
+    position: absolute;
+    inset: 0;
+    padding: 16px;
+    color: #000;
+    background: #fff;
+  }
+}

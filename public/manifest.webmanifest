@@ -1,0 +1,10 @@
+{
+  "name": "Fluxora (demonstração)",
+  "short_name": "Fluxora",
+  "start_url": "/painel",
+  "display": "standalone",
+  "background_color": "#0a0c16",
+  "theme_color": "#5b4ff0",
+  "lang": "pt-BR",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

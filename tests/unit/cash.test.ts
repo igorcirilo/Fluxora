@@ -2,7 +2,15 @@ import { describe, expect, it } from "vitest";
 import { accountBalance, cashReport, makeReversal, makeTransfer, monthlyCashReport, type CashMovement } from "@/modules/finance/cash";
 import { simpleDre } from "@/modules/finance/dre";
 
-const mv = (id: string, date: string, direction: "in" | "out", amountCents: number, category: CashMovement["category"], accountId = "bank"): CashMovement => ({ id, accountId, date, direction, amountCents, category, description: id });
+const mv = (id: string, date: string, direction: "in" | "out", amountCents: number, category: CashMovement["category"], accountId = "bank"): CashMovement => ({
+  id,
+  accountId,
+  date,
+  direction,
+  amountCents,
+  category,
+  description: id,
+});
 
 describe("caixa — porta de engine.cash_report", () => {
   it("saldo = abertura + entradas − saídas (caso do protótipo = 700)", () => {

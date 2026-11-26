@@ -59,9 +59,7 @@ export function closeSession(state: TenantState, countedCents: Cents, ctx: Ctx):
   const expected = expectedDrawer(state, session.id);
   return {
     ...state,
-    cashSessions: state.cashSessions.map((s) =>
-      s.id === session.id ? { ...s, closedAt: ctx.nowIso, countedCents, expectedCents: expected, differenceCents: countedCents - expected } : s,
-    ),
+    cashSessions: state.cashSessions.map((s) => (s.id === session.id ? { ...s, closedAt: ctx.nowIso, countedCents, expectedCents: expected, differenceCents: countedCents - expected } : s)),
     audit: [...state.audit, audit(state, ctx, "cash_session.close", "cash_session", session.id, `contado ${countedCents} esperado ${expected}`)],
   };
 }

@@ -21,7 +21,9 @@ export function assertCents(value: number, { allowZero = false } = {}): Cents {
  * Rejeita NaN, Infinity, negativos, mais de 2 casas e zero (equivalente a `cents()` do protótipo).
  */
 export function parseCents(input: string | number, { allowZero = false } = {}): Cents {
-  let s = String(input).trim().replace(/^R\$\s*/i, "");
+  let s = String(input)
+    .trim()
+    .replace(/^R\$\s*/i, "");
   if (s === "") throw new DomainError("INVALID_AMOUNT", "Valor inválido.");
   // Formato brasileiro com vírgula decimal: remove separador de milhar.
   if (s.includes(",")) s = s.replace(/\./g, "").replace(",", ".");

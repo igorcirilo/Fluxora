@@ -75,10 +75,7 @@ describe("proporcionalidade e calendário", () => {
 
 describe("estornos, histórico e regras versionadas", () => {
   it("estorno ligado ao original reduz a receita na competência do original", () => {
-    const entries: RevenueEntry[] = [
-      sale("v1", "2025-12-20", 100_000),
-      { id: "e1", kind: "reversal", competenceDate: "2026-01-05", amountCents: 40_000, description: "dev", reversalOf: "v1" },
-    ];
+    const entries: RevenueEntry[] = [sale("v1", "2025-12-20", 100_000), { id: "e1", kind: "reversal", competenceDate: "2026-01-05", amountCents: 40_000, description: "dev", reversalOf: "v1" }];
     expect(limitReport({ entries, openedOn: "2025-01-01", year: 2025 }).grossCents).toBe(60_000);
     expect(limitReport({ entries, openedOn: "2025-01-01", year: 2026 }).grossCents).toBe(0);
   });

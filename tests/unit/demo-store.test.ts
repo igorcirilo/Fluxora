@@ -16,7 +16,8 @@ describe("seed fictício", () => {
     expect(a1.sales.length).toBe(a2.sales.length);
     expect(a1.sales.length).toBeGreaterThan(500);
     expect([...stockBalances(a1.stockMovements).values()].every((q) => q >= 0)).toBe(true);
-    expect(a1.revenues.filter((r) => r.kind !== "reversal")).toHaveLength(a1.sales.length);
+    expect(a1.revenues.filter((r) => r.kind === "sale" || r.kind === "service")).toHaveLength(a1.sales.length);
+    expect(a1.revenues.some((r) => r.kind === "historical_import")).toBe(true);
     expect(a1.customers.every((c) => c.name.includes("fictício"))).toBe(true);
   });
 

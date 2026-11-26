@@ -20,13 +20,7 @@ export interface SimpleDre {
   marginBp: number;
 }
 
-export function simpleDre(params: {
-  revenues: readonly RevenueEntry[];
-  cogsCents: Cents;
-  movements: readonly CashMovement[];
-  start: BizDate;
-  end: BizDate;
-}): SimpleDre {
+export function simpleDre(params: { revenues: readonly RevenueEntry[]; cogsCents: Cents; movements: readonly CashMovement[]; start: BizDate; end: BizDate }): SimpleDre {
   const { revenues, movements, start, end, cogsCents } = params;
   const inRange = (d: BizDate) => compareBiz(d, start) >= 0 && compareBiz(d, end) < 0;
   const byId = new Map(revenues.map((r) => [r.id, r]));

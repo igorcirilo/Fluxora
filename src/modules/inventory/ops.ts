@@ -47,7 +47,19 @@ export function createProduct(state: TenantState, input: ProductInput, ctx: Ctx)
   };
   const movements =
     input.trackStock && input.initialStock && input.initialStock > 0
-      ? [makeStockMovement({ id: ctx.newId("stk"), product, type: "initial", quantity: input.initialStock, date: ctx.today, createdAt: ctx.nowIso, allowNegative: true, existing: [], unitCostCents: input.costCents })]
+      ? [
+          makeStockMovement({
+            id: ctx.newId("stk"),
+            product,
+            type: "initial",
+            quantity: input.initialStock,
+            date: ctx.today,
+            createdAt: ctx.nowIso,
+            allowNegative: true,
+            existing: [],
+            unitCostCents: input.costCents,
+          }),
+        ]
       : [];
   return {
     ...state,
