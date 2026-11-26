@@ -17,7 +17,9 @@ export class DisabledBillingProvider implements BillingProvider {
   async createCheckout(): Promise<{ checkoutUrl: string }> {
     throw new DomainError("BILLING_PROVIDER_NOT_CONFIGURED", "Cobrança não configurada. Piloto gratuito até formalização.");
   }
-  async verifyWebhook(): Promise<boolean> {
+  async verifyWebhook(_rawBody?: string, _signature?: string | null): Promise<boolean> {
+    void _rawBody;
+    void _signature;
     return false;
   }
 }
