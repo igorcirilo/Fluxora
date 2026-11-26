@@ -1,0 +1,11 @@
+services:
+  app:
+    build: .
+    ports: ["127.0.0.1:8000:8000"]
+    environment:
+      APP_ORIGIN: ${APP_ORIGIN:-http://localhost:8000}
+      SECURE_COOKIE: ${SECURE_COOKIE:-0}
+    volumes: ["mei_data:/data"]
+    restart: unless-stopped
+volumes:
+  mei_data:
