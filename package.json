@@ -1,0 +1,45 @@
+{
+  "name": "fluxora",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Fluxora — gestão simples para MEI: vendas, caixa, estoque e obrigações.",
+  "engines": {
+    "node": ">=22.12 <23 || >=24"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --project unit",
+    "test:integration": "vitest run --project integration",
+    "test:e2e": "playwright test",
+    "test:legacy": "cd legacy/prototipo-python && python3 -m unittest discover -s tests -v",
+    "db:migrate": "node scripts/migrate.mjs",
+    "check": "npm run lint && npm run typecheck && npm run test && npm run build"
+  },
+  "dependencies": {
+    "clsx": "2.1.1",
+    "geist": "1.9.2",
+    "lucide-react": "1.81.0",
+    "next": "16.4.6",
+    "pg": "8.23.1",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@tailwindcss/postcss": "4.3.5",
+    "@types/node": "22.20.7",
+    "@types/pg": "8.23.1",
+    "@types/react": "19.3.3",
+    "@types/react-dom": "19.3.0",
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.4.6",
+    "tailwindcss": "4.3.5",
+    "typescript": "5.9.3",
+    "vitest": "5.1.2"
+  }
+}
