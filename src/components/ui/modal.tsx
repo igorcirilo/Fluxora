@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "./cn";
 
@@ -37,8 +38,9 @@ export function Modal({
       window.removeEventListener("keydown", onKey);
     };
   }, [open, onClose]);
-  if (!open) return null;
-  return (
+  if (!open || typeof document === "undefined") return null;
+  // Portal no <body>: evita que contextos de empilhamento (animações com transform) prendam o modal sob o cabeçalho.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end justify-center sm:items-center sm:p-6" role="presentation">
       <div className="animate-fade absolute inset-0 bg-black/45 backdrop-blur-[2px]" onClick={onClose} aria-hidden />
       <div
@@ -65,6 +67,7 @@ export function Modal({
         <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5">{children}</div>
         {footer ? <div className="pb-safe flex flex-col-reverse gap-2 border-t border-line px-5 py-3 sm:flex-row sm:justify-end">{footer}</div> : null}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
