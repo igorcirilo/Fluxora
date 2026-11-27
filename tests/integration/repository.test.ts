@@ -49,7 +49,8 @@ describe.skipIf(!ADMIN)("repositório PostgreSQL + comandos", () => {
     tenantA = await withUser(db.pool, db.userA, async (c) => (await c.query("SELECT app.create_tenant('Aurora Doces (teste)','Doceria Aurora','2024-03-04','comercio') AS id")).rows[0].id);
     tenantB = await withUser(db.pool, db.userB, async (c) => (await c.query("SELECT app.create_tenant('Outra (teste)','Outra','2025-01-01','servicos') AS id")).rows[0].id);
     const base = seedDoceria("2026-11-26");
-    seeded = { ...base, tenant: { ...base.tenant, id: tenantA } };
+    // O vínculo de contador da demo aponta para um usuário que só existe na demo: fica fora do teste de fidelidade.
+    seeded = { ...base, tenant: { ...base.tenant, id: tenantA }, accountantLinks: base.accountantLinks.map((l) => ({ ...l, accountantUserId: undefined, acceptedAt: undefined })) };
   }, 120_000);
 
   afterAll(async () => db?.drop());
