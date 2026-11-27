@@ -8,10 +8,23 @@ Monólito modular Next.js. O **domínio** (`src/modules`) é TypeScript puro, se
 - trocar a persistência pelo PostgreSQL sem reescrever regras.
 
 ```
-UI (app/) ──► casos de uso (modules/*) ──► persistência
-                                        ├─ demo: DemoStore (localStorage, por navegador)
-                                        └─ produção: PostgreSQL + RLS via withTenant()
+UI (app/) ──► exec("comando", input) ──► COMMANDS (Zod + domínio puro)
+                     │
+                     ├─ modo demo:  DemoStore (localStorage, dados fictícios)
+                     └─ modo conta: POST /api/app/commands
+                                    → Better Auth (sessão) → withTenant (membership + RLS)
+                                    → SELECT … FOR UPDATE na empresa (serializa escritas)
+                                    → loadTenantState → runCommand → persistDiff → COMMIT
 ```
+
+### Barramento de comandos (`src/modules/commands.ts`)
+Toda escrita é um comando nomeado (`sale.checkout`, `purchase.receive`, `title.settle`…) com schema Zod validado **no servidor**. A interface nunca envia funções nem estado: só nome + entrada. O mesmo registro roda na demo e no servidor, então regras e testes valem para os dois modos.
+
+### Repositório PostgreSQL (`src/lib/db/tenant-repo.ts`)
+Carrega o agregado do tenant sob RLS e grava apenas a diferença após o comando. Coleções de histórico (caixa, receita, estoque, liquidações, DAS, auditoria) são somente-inserção: qualquer alteração/remoção nelas aborta a transação. Teste de integração grava ~1.500 vendas fictícias e confere leitura idêntica. Limitação conhecida: cada comando carrega o agregado inteiro — adequado ao volume de MEI no piloto; consultas direcionadas ficam para quando o volume exigir (medir p95).
+
+### Autenticação (`src/lib/auth`)
+Better Auth 1.7 com tabelas `app.auth_*` (migration 0001): senha com hash scrypt (mínimo 12 caracteres), sessão em cookie HttpOnly/SameSite (Secure em produção), CSRF por Origin/Fetch-Metadata, limite de tentativas persistido no banco, verificação em duas etapas (TOTP + códigos de recuperação). Rotas próprias `/api/app/*` exigem sessão e Origin igual ao host. A empresa ativa fica num cookie apenas como preferência; a membership é sempre verificada no banco. Recuperação de senha exige provedor de e-mail (desabilitada até configurar; nunca simulada).
 
 ## Dinheiro e datas
 - Centavos inteiros sempre (`bigint` no banco; inteiros seguros validados no JS). `parseCents` converte texto pt-BR sem float.
@@ -29,7 +42,7 @@ UI (app/) ──► casos de uso (modules/*) ──► persistência
 `checkout()` valida tudo antes de alterar qualquer coisa e grava juntos: venda, itens, baixa de estoque, receita, movimentos de caixa e recebíveis. A chave idempotente (`sale:<uuid>` por tenant) faz a repetição devolver a venda existente. No banco, `UNIQUE (tenant_id, idempotency_key)` garante o mesmo sob concorrência.
 
 ## Multi-tenant e segurança (PostgreSQL)
-- Todas as tabelas de negócio têm `tenant_id NOT NULL`, `UNIQUE (tenant_id, id)` e FKs **compostas** `(tenant_id, x_id)` — impossível referenciar registro de outro tenant.
+- Todas as tabelas de negócio têm `tenant_id NOT NULL`, chave primária `(tenant_id, id)` (IDs de texto gerados pelo domínio) e FKs **compostas** `(tenant_id, x_id)` — impossível referenciar registro de outro tenant.
 - `ENABLE` + `FORCE ROW LEVEL SECURITY` com política `tenant_id = app.current_tenant_id() AND app.is_member(tenant_id)` (USING e WITH CHECK). Sem contexto ⇒ zero linhas (negar por padrão).
 - Papel `fluxora_app` (runtime): sem superusuário, sem `BYPASSRLS`, não é dono das tabelas, privilégios mínimos; históricos (ledger, receita, estoque, auditoria, liquidações) sem UPDATE/DELETE e com triggers de imutabilidade.
 - `withTenant(pool, {userId, tenantId}, fn)`: `BEGIN` → `set_config('app.user_id', …, true)` → verifica membership → `set_config('app.tenant_id', …, true)` → `fn` → `COMMIT`. Configurações locais à transação não vazam no pool (testado com pool de 1 conexão).
@@ -45,3 +58,7 @@ Respostas de erro estáveis `{ error: { code, message, details? } }`, validaçã
 
 ## Front-end
 Componentes reutilizáveis em `src/components/ui` (botões, cards, modais bottom-sheet no celular, segmented, KPIs com definição, gráficos SVG sem biblioteca), tema claro/escuro por tokens CSS, navegação inferior no celular e lateral no desktop, PWA manifest.
+
+## Comércio (Etapa 2)
+- **Compras de mercadoria** (`purchase.receive`): entrada no estoque com lote e validade, custo médio ponderado e pagamento à vista (`inventory_purchase`) ou a prazo (contas a pagar categoria "Mercadorias"). Compras não são despesa na DRE: o custo entra pelo CMV quando vendida.
+- **Fornecedores** (`supplier.create`) e alerta de **lotes com validade próxima** (15 dias) no painel e em Produtos. O sistema não rastreia qual lote foi vendido (sem FIFO por lote); o alerta pede conferência física.

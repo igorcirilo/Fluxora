@@ -35,7 +35,7 @@ describe.skipIf(!ADMIN)("PostgreSQL RLS e isolamento entre tenants", () => {
     await owner.connect();
     await migrate(owner, undefined, () => undefined);
     // Usuários são geridos pelo serviço de autenticação (owner nesta preparação).
-    const users = await owner.query("INSERT INTO app.users (email, name) VALUES ('a@exemplo.test','Usuário A'), ('b@exemplo.test','Usuário B') RETURNING id, email");
+    const users = await owner.query(`INSERT INTO app.auth_user (name, email, "emailVerified") VALUES ('Usuário A','a@exemplo.test',false), ('Usuário B','b@exemplo.test',false) RETURNING id, email`);
     ids.userA = users.rows.find((r) => r.email.startsWith("a"))!.id;
     ids.userB = users.rows.find((r) => r.email.startsWith("b"))!.id;
     await owner.end();
@@ -104,28 +104,28 @@ describe.skipIf(!ADMIN)("PostgreSQL RLS e isolamento entre tenants", () => {
     const productA = await withTenant(appPool, A(), async (c) => (await c.query("SELECT id FROM app.products LIMIT 1")).rows[0].id as string);
     await expect(
       withTenant(appPool, B(), async (c) => {
-        const s = await c.query("INSERT INTO app.sales (tenant_id, number, idempotency_key, sale_date, subtotal_cents, total_cents) VALUES ($1, 1, 'k-b-1', '2026-11-26', 1200, 1200) RETURNING id", [ids.tenantB]);
-        await c.query("INSERT INTO app.sale_items (tenant_id, sale_id, product_id, name, quantity, unit_price_cents, unit_cost_cents, total_cents) VALUES ($1, $2, $3, 'x', 1, 1200, 0, 1200)", [ids.tenantB, s.rows[0].id, productA]);
+        const s = await c.query("INSERT INTO app.sales (tenant_id, id, number, idempotency_key, sale_date, subtotal_cents, total_cents) VALUES ($1, 'v-b-1', 1, 'k-b-1', '2026-11-26', 1200, 1200) RETURNING id", [ids.tenantB]);
+        await c.query("INSERT INTO app.sale_items (tenant_id, id, sale_id, product_id, name, quantity, unit_price_cents, unit_cost_cents, total_cents) VALUES ($1, 'it-1', $2, $3, 'x', 1, 1200, 0, 1200)", [ids.tenantB, s.rows[0].id, productA]);
       }),
     ).rejects.toThrow(/foreign key/);
   });
 
   it("chave idempotente única por tenant/operação: repetição não duplica venda", async () => {
-    const insert = (c: pg.PoolClient) => c.query("INSERT INTO app.sales (tenant_id, number, idempotency_key, sale_date, subtotal_cents, total_cents) VALUES ($1, (SELECT coalesce(max(number),0)+1 FROM app.sales), 'same-key', '2026-11-26', 500, 500)", [ids.tenantA]);
+    const insert = (c: pg.PoolClient) => c.query("INSERT INTO app.sales (tenant_id, id, number, idempotency_key, sale_date, subtotal_cents, total_cents) VALUES ($1, gen_random_uuid()::text, (SELECT coalesce(max(number),0)+1 FROM app.sales), 'same-key', '2026-11-26', 500, 500)", [ids.tenantA]);
     await withTenant(appPool, A(), insert);
     await expect(withTenant(appPool, A(), insert)).rejects.toThrow(/duplicate key/);
     // A mesma chave em OUTRO tenant é independente.
-    await withTenant(appPool, B(), (c) => c.query("INSERT INTO app.sales (tenant_id, number, idempotency_key, sale_date, subtotal_cents, total_cents) VALUES ($1, 99, 'same-key', '2026-11-26', 500, 500)", [ids.tenantB]));
+    await withTenant(appPool, B(), (c) => c.query("INSERT INTO app.sales (tenant_id, id, number, idempotency_key, sale_date, subtotal_cents, total_cents) VALUES ($1, 'v-99', 99, 'same-key', '2026-11-26', 500, 500)", [ids.tenantB]));
   });
 
   it("lançamentos de caixa são imutáveis e liquidação não excede o título", async () => {
     await withTenant(appPool, A(), async (c) => {
       const acc = (await c.query("SELECT id FROM app.accounts WHERE kind = 'bank'")).rows[0].id;
-      const le = await c.query("INSERT INTO app.ledger_entries (tenant_id, account_id, entry_date, direction, amount_cents, category, description) VALUES ($1, $2, '2026-11-26', 'in', 1000, 'receivable_settlement', 'x') RETURNING id", [ids.tenantA, acc]);
-      const t = await c.query("INSERT INTO app.titles (tenant_id, kind, description, competence_date, due_date, amount_cents) VALUES ($1, 'receivable', 'fiado', '2026-11-01', '2026-12-01', 1500) RETURNING id", [ids.tenantA]);
-      await c.query("INSERT INTO app.settlements (tenant_id, title_id, settled_on, amount_cents, ledger_entry_id) VALUES ($1, $2, '2026-11-26', 1000, $3)", [ids.tenantA, t.rows[0].id, le.rows[0].id]);
+      const le = await c.query("INSERT INTO app.ledger_entries (tenant_id, id, account_id, entry_date, direction, amount_cents, category, description) VALUES ($1, 'le-1', $2, '2026-11-26', 'in', 1000, 'receivable_settlement', 'x') RETURNING id", [ids.tenantA, acc]);
+      const t = await c.query("INSERT INTO app.titles (tenant_id, id, kind, description, competence_date, due_date, amount_cents) VALUES ($1, 't-1', 'receivable', 'fiado', '2026-11-01', '2026-12-01', 1500) RETURNING id", [ids.tenantA]);
+      await c.query("INSERT INTO app.settlements (tenant_id, id, title_id, settled_on, amount_cents, account_id, ledger_entry_id) VALUES ($1, 's-1', $2, '2026-11-26', 1000, 'acc-banco', $3)", [ids.tenantA, t.rows[0].id, le.rows[0].id]);
       await c.query("SAVEPOINT s1");
-      await expect(c.query("INSERT INTO app.settlements (tenant_id, title_id, settled_on, amount_cents, ledger_entry_id) VALUES ($1, $2, '2026-11-26', 501, $3)", [ids.tenantA, t.rows[0].id, le.rows[0].id])).rejects.toThrow(/excede/);
+      await expect(c.query("INSERT INTO app.settlements (tenant_id, id, title_id, settled_on, amount_cents, account_id, ledger_entry_id) VALUES ($1, 's-2', $2, '2026-11-26', 501, 'acc-banco', $3)", [ids.tenantA, t.rows[0].id, le.rows[0].id])).rejects.toThrow(/excede/);
       await c.query("ROLLBACK TO SAVEPOINT s1");
     });
     await expect(withTenant(appPool, A(), (c) => c.query("UPDATE app.ledger_entries SET amount_cents = 1"))).rejects.toThrow(/permission denied|imutável/);
@@ -159,8 +159,9 @@ describe.skipIf(!ADMIN)("PostgreSQL RLS e isolamento entre tenants", () => {
     await owner.connect();
     try {
       expect(await migrate(owner, undefined, () => undefined)).toEqual([]);
-      await owner.query("UPDATE public.schema_migrations SET checksum = 'x' WHERE name = '0001_core.sql'");
+      await owner.query("UPDATE public.schema_migrations SET checksum = 'x' WHERE name = '0002_core.sql'");
       await expect(migrate(owner, undefined, () => undefined)).rejects.toThrow(/alterada/);
+      await owner.query("UPDATE public.schema_migrations SET checksum = $1 WHERE name = '0002_core.sql'", ["restaurado"]);
     } finally {
       await owner.end();
     }

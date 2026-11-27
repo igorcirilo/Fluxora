@@ -53,8 +53,21 @@ jobs:
       - run: npm run test:integration
 
   e2e:
-    name: E2E (375/390/430 px e desktop)
+    name: E2E (375/390/430 px e desktop, demo + contas reais)
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_PG_ADMIN_URL: postgres://postgres:postgres@localhost:5432/postgres
+      BETTER_AUTH_URL: http://localhost:3100
+      AUTH_RATE_LIMIT_MULTIPLIER: "20"
+      E2E_ACCOUNTS: "1"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -64,7 +77,11 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm run build
-      - run: npm run test:e2e -- --trace off
+      - name: E2E (servidor com banco de teste descartável)
+        run: |
+          export DATABASE_URL="$(node scripts/e2e-db.mjs fluxora_e2e)"
+          export BETTER_AUTH_SECRET="$(openssl rand -hex 32)"
+          npm run test:e2e -- --trace off
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

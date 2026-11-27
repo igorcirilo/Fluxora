@@ -1,4 +1,4 @@
-# Matriz implementado / testado / pendente — v0.1 (26/11/2026)
+# Matriz implementado / testado / pendente — v0.2 (27/11/2026)
 
 Legenda: ✅ feito · 🧪 coberto por teste automatizado · ⏳ pendente · 🚫 fora do escopo sem autorização/homologação
 
@@ -26,7 +26,8 @@ Legenda: ✅ feito · 🧪 coberto por teste automatizado · ⏳ pendente · �
 | Estados vazios e onboarding | ✅ 🧪 E2E |
 | Tema escuro, PWA manifest | ✅ — service worker/IndexedDB offline ⏳ |
 | Comprovante não fiscal + WhatsApp por link | ✅ |
-| Variantes, lotes, validade, kits, fornecedores completos, compras, importação XML | ⏳ |
+| Compras de mercadoria, fornecedores, lote, validade, custo médio | ✅ 🧪 |
+| Variantes, kits, FIFO por lote, importação XML de NF-e | ⏳ |
 | Serviços: agenda, profissionais, comissão, orçamento PDF, OS | ⏳ |
 | Catálogo público com QR | ⏳ |
 | Painel do contador (multi-empresa), superadmin | ⏳ (vínculo revogável já modelado) |
@@ -37,8 +38,12 @@ Legenda: ✅ feito · 🧪 coberto por teste automatizado · ⏳ pendente · �
 | Migrations com RLS FORCE, FKs compostas, imutabilidade, papel runtime restrito | ✅ 🧪 PostgreSQL 16 real |
 | Contexto de tenant transacional sem vazamento no pool | ✅ 🧪 |
 | APIs Zod com erros estáveis | ✅ 🧪 |
-| Autenticação (Better Auth: Argon2id/scrypt, cookies seguros, CSRF, rate limit, MFA admin, recuperação por token único) | ⏳ próxima etapa |
-| Repositórios PostgreSQL para todas as telas (substituir store da demo) | ⏳ |
+| Autenticação Better Auth: scrypt, cookies seguros, CSRF, rate limit no banco, MFA TOTP | ✅ 🧪 E2E com PostgreSQL |
+| Recuperação de senha por token único | ⏳ exige provedor de e-mail |
+| Modo conta: todas as telas gravando no PostgreSQL via comandos | ✅ 🧪 integração + E2E |
+| Barramento de comandos com Zod no servidor | ✅ 🧪 |
+| Repositório com gravação por diferença e histórico imutável | ✅ 🧪 (fidelidade com ~1.500 vendas) |
+| Banco Neon de teste conectado à Vercel | ⏳ chave da API do Neon recusada — aguardando nova chave |
 | FiscalProvider real (sandbox oficial + homologação) | 🚫 sem credenciais/autorização |
 | BillingProvider real (PSP com KYC) | 🚫 sem formalização |
 | Worker de fila | ⏳ (tabela pronta) |

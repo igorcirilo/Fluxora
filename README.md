@@ -2,7 +2,7 @@
 
 Gestão simples para **MEI de comércio e serviços**: registrar vendas, saber quanto entrou e saiu, acompanhar o limite do MEI e as obrigações, e compartilhar tudo com o contador.
 
-> **Estado atual: v0.1 — demonstração navegável com dados fictícios.** Sem login real, sem banco no servidor, sem emissão fiscal e sem cobranças. Os cálculos são gerenciais e não substituem o contador.
+> **Estado atual: v0.2.** Dois modos com as mesmas telas: **demonstração** (dados fictícios no navegador) e **conta real beta** (login seguro + PostgreSQL com isolamento por empresa), habilitado quando o ambiente tem banco configurado. Sem emissão fiscal e sem cobranças. Os cálculos são gerenciais e não substituem o contador.
 
 ## O que já existe
 
@@ -11,13 +11,13 @@ Gestão simples para **MEI de comércio e serviços**: registrar vendas, saber q
 | Painel | KPIs com período e definição (receita por competência ≠ caixa ≠ lucro), gráfico receita × caixa, limite MEI, alertas, agenda de 30 dias, mais vendidos |
 | PDV | Busca/código de barras/SKU, carrinho, desconto (R$ ou %), pagamentos mistos, troco, fiado e crédito como recebíveis, abertura/fechamento de caixa, sangria/suprimento, comprovante **não fiscal**, idempotência |
 | Vendas | Histórico com filtros, devolução com estorno ligado, rascunho fiscal, CSV |
-| Produtos | Cadastro, custo/margem, estoque com movimentos imutáveis (compra, perda, inventário), alerta de mínimo, importação/exportação CSV |
+| Produtos | Cadastro, custo/margem, estoque com movimentos imutáveis, **entrada de mercadoria com fornecedor, lote, validade e custo médio**, alerta de mínimo e de validade, CSV |
 | Clientes | Cadastro mínimo (LGPD), histórico, fiado em aberto, recebimento parcial, cobrança por link do WhatsApp |
 | Financeiro | Fluxo de caixa mensal, saldos por conta, projeção 30 dias, DRE gerencial, contas a receber/pagar com parcelas e liquidação parcial, lançamentos com estorno, transferências |
 | Meu MEI | Limite proporcional, alertas 80/90/100/120%, projeção, DAS manual com comprovante, DASN-SIMEI, importação de histórico, links oficiais |
 | Fiscal | Interfaces `FiscalProvider` com máquina de estados; desabilitado sem provedor homologado (nunca simula sucesso) |
 | Configurações | Empresa, tema claro/escuro, vínculo de contador revogável, exportação JSON, restauração da demo, auditoria |
-| Backend (base) | Migrations PostgreSQL com RLS, papel de runtime sem BYPASSRLS, contexto de tenant transacional, APIs com Zod |
+| Contas reais | Better Auth (senha forte, MFA TOTP, limite de tentativas), cadastro de empresa, troca de empresa, comandos gravados no PostgreSQL sob RLS |
 
 Detalhes e lacunas em [`docs/STATUS.md`](docs/STATUS.md). Arquitetura em [`docs/ARQUITETURA.md`](docs/ARQUITETURA.md). Implantação futura em VPS em [`docs/DEPLOY.md`](docs/DEPLOY.md).
 

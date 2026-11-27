@@ -43,6 +43,8 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgres://fluxora_app:${FLUXORA_APP_PASSWORD}@db:5432/fluxora
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:?defina BETTER_AUTH_SECRET (32+ caracteres)}
+      BETTER_AUTH_URL: ${BETTER_AUTH_URL:?defina BETTER_AUTH_URL (https://seu-dominio)}
       NEXT_PUBLIC_DEMO_MODE: ${NEXT_PUBLIC_DEMO_MODE:-1}
       FISCAL_PROVIDER: ${FISCAL_PROVIDER:-disabled}
       BILLING_PROVIDER: ${BILLING_PROVIDER:-disabled}
