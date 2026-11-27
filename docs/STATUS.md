@@ -43,7 +43,7 @@ Legenda: ✅ feito · 🧪 coberto por teste automatizado · ⏳ pendente · �
 | Modo conta: todas as telas gravando no PostgreSQL via comandos | ✅ 🧪 integração + E2E |
 | Barramento de comandos com Zod no servidor | ✅ 🧪 |
 | Repositório com gravação por diferença e histórico imutável | ✅ 🧪 (fidelidade com ~1.500 vendas) |
-| Banco Neon de teste conectado à Vercel | ⏳ chave da API do Neon recusada — aguardando nova chave |
+| Banco Neon de teste (São Paulo) conectado à Vercel (funções em gru1) | ✅ validado em produção: cadastro, empresa, produto, venda, novo login |
 | FiscalProvider real (sandbox oficial + homologação) | 🚫 sem credenciais/autorização |
 | BillingProvider real (PSP com KYC) | 🚫 sem formalização |
 | Worker de fila | ⏳ (tabela pronta) |
