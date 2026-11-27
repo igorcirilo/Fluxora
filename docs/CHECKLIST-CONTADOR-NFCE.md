@@ -1,12 +1,14 @@
 # Roteiro para a revisão do contador — NFC-e (piloto SP)
 
+> Versão para preencher pelo celular (salva as respostas automaticamente): Artifact "Roteiro NFC-e SP", compartilhado pelo titular do projeto.
+
 O Fluxora já valida formatos (IE de SP com dígitos verificadores, NCM, CFOP, CSOSN, origem, CEST) e bloqueia produção sem a revisão registrada. **As decisões abaixo são do contador**; nada disso é presumido pelo sistema.
 
 ## 1. Obrigatoriedade e regime
 - [ ] O MEI do piloto é obrigado a emitir NFC-e nas vendas a consumidor pessoa física em SP, ou a emissão será voluntária?
 - [ ] Nas vendas para empresas (CNPJ), qual documento usar (NF-e modelo 55)?
 - [ ] CRT a informar na nota (o Fluxora oferece "4 – Simples Nacional · MEI" e "1 – Simples Nacional").
-- [ ] O SAT-CF-e ainda é usado por este contribuinte? Há prazo de migração a observar?
+- [ ] Este contribuinte usava SAT-CF-e? Segundo comunicados da SEFAZ-SP (Portaria SRE 79/2024), o SAT deixou de ser aceito em 1º/01/2026; confirmar que a migração para NFC-e está concluída.
 
 ## 2. Cadastro na SEFAZ-SP
 - [ ] Inscrição estadual ativa (12 dígitos).
