@@ -1,7 +1,7 @@
 "use client";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import { ArrowRight, Store } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ArrowRight, KeyRound, Mail, Store } from "lucide-react";
 import { Logo } from "@/components/shell/logo";
 import { Button, Field, Input, Segmented } from "@/components/ui";
 import { getAccountStore, setMode } from "@/demo/use-demo";
@@ -12,6 +12,23 @@ export function CompanyOnboarding() {
   const [f, setF] = useState({ tradeName: "", openedOn: todayBiz(), segment: "comercio" as "comercio" | "servicos" | "misto" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [invites, setInvites] = useState<{ tenantId: string; linkId: string; companyLabel: string }[]>([]);
+  const [codes, setCodes] = useState<Record<string, string>>({});
+  useEffect(() => {
+    getAccountStore()
+      ?.invites()
+      .then(setInvites)
+      .catch(() => setInvites([]));
+  }, []);
+  const accept = async (tenantId: string, linkId: string) => {
+    setBusy(true);
+    setError(null);
+    const r = await getAccountStore()!.acceptInvite(tenantId, linkId, codes[linkId] ?? "");
+    setBusy(false);
+    if (!r.ok) return setError(r.message);
+    setMode("conta");
+    router.push("/contador");
+  };
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
@@ -23,7 +40,26 @@ export function CompanyOnboarding() {
     router.push("/painel");
   };
   return (
-    <div className="flex min-h-dvh items-start justify-center px-4 py-8 sm:items-center">
+    <div className="flex min-h-dvh flex-col items-center justify-start gap-4 px-4 py-8 sm:justify-center">
+      {invites.length ? (
+        <div className="w-full max-w-md space-y-3 rounded-3xl border border-brand/30 bg-surface p-5 shadow-card">
+          <h2 className="flex items-center gap-2 text-[17px] font-semibold">
+            <Mail size={18} className="text-brand" /> Você foi convidado(a) como contador(a)
+          </h2>
+          {invites.map((i) => (
+            <div key={i.linkId} className="rounded-xl border border-line p-3">
+              <div className="text-[14px] font-medium">{i.companyLabel || "Empresa"}</div>
+              <div className="mt-2 flex gap-2">
+                <Input aria-label={`Código do convite de ${i.companyLabel}`} placeholder="Código (8 caracteres)" maxLength={8} className="font-mono uppercase" value={codes[i.linkId] ?? ""} onChange={(e) => setCodes({ ...codes, [i.linkId]: e.target.value.toUpperCase() })} />
+                <Button type="button" disabled={(codes[i.linkId] ?? "").length !== 8 || busy} onClick={() => void accept(i.tenantId, i.linkId)}>
+                  <KeyRound size={15} /> Aceitar
+                </Button>
+              </div>
+            </div>
+          ))}
+          <p className="text-[12px] text-subtle">Se você também é titular de um MEI, pode cadastrar sua empresa abaixo.</p>
+        </div>
+      ) : null}
       <form onSubmit={submit} className="w-full max-w-md space-y-4 rounded-3xl border border-line bg-surface p-5 shadow-card sm:p-6">
         <Logo />
         <div>

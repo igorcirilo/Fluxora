@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ArrowRight, Cake, Sparkles, Store, ShieldCheck, Wallet, ScanLine, FlaskConical, Plus, Lock } from "lucide-react";
+import { ArrowRight, Cake, Sparkles, Store, ShieldCheck, Wallet, ScanLine, FlaskConical, Plus, Lock, Briefcase } from "lucide-react";
 import { Logo } from "@/components/shell/logo";
 import { Button, Field, Input, Modal, Segmented } from "@/components/ui";
 import { getStore, setMode, useDemoDb } from "@/demo/use-demo";
@@ -23,14 +23,14 @@ export function EntryScreen() {
   const [form, setForm] = useState({ tradeName: "", openedOn: todayBiz(), segment: "comercio" as "comercio" | "servicos" | "misto", ownerName: "" });
   const [error, setError] = useState<string | null>(null);
 
-  const enter = (userId: string, key: string) => {
+  const enter = (userId: string, key: string, to = "/painel") => {
     setLoading(key);
     // Pequeno atraso para o carregamento inicial dos dados fictícios não travar a interação.
     setTimeout(() => {
       const r = getStore()?.login(userId);
       if (r?.ok) {
         setMode("demo");
-        router.push("/painel");
+        router.push(to);
       }
       else setLoading(null);
     }, 30);
@@ -105,6 +105,15 @@ export function EntryScreen() {
               gradient="from-[#12b886] to-[#2f80ed]"
               loading={loading === "b"}
               onClick={() => enter("usr_bruno", "b")}
+            />
+            <DemoCard
+              icon={<Briefcase size={22} />}
+              title="Mônica, contadora (fictícia)"
+              subtitle="Painel do contador · somente leitura"
+              meta="Acompanha as duas empresas acima com autorização dos titulares"
+              gradient="from-[#2f80ed] to-[#5b4ff0]"
+              loading={loading === "m"}
+              onClick={() => enter("usr_monica", "m", "/contador")}
             />
             <button
               onClick={() => setBlankOpen(true)}

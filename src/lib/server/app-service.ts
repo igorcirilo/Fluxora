@@ -55,6 +55,8 @@ export async function loadState(userId: string, tenantId: string) {
  */
 export async function executeCommand(userId: string, tenantId: string, name: string, input: unknown) {
   return withTenant(getPool(), { userId, tenantId }, async (c) => {
+    const role = (await c.query("SELECT role FROM app.memberships WHERE tenant_id = $1 AND user_id = $2", [tenantId, userId])).rows[0]?.role;
+    if (role === "accountant") throw new DomainError("TENANT_ACCESS_DENIED", "Acesso de contador é somente leitura.");
     await c.query("SELECT 1 FROM app.tenants WHERE id = $1 FOR UPDATE", [tenantId]);
     const before = await loadTenantState(c, tenantId);
     const out = runCommand(name, input, before, serverCtx(userId));
@@ -78,4 +80,41 @@ export function assertSameOrigin(req: Request) {
     ok = false;
   }
   if (!ok) throw new DomainError("TENANT_ACCESS_DENIED", "Origem não permitida.");
+}
+
+/* ---------- Contador ---------- */
+
+export interface PendingInvite {
+  tenantId: string;
+  linkId: string;
+  companyLabel: string;
+  scopes: string[];
+  grantedAt: string;
+  expiresAt: string;
+}
+
+export async function pendingInvites(userId: string): Promise<PendingInvite[]> {
+  return withUser(getPool(), userId, async (c) =>
+    (await c.query("SELECT * FROM app.pending_accountant_invites()")).rows.map((r) => ({
+      tenantId: r.tenant_id,
+      linkId: r.link_id,
+      companyLabel: r.company_label,
+      scopes: r.scopes,
+      grantedAt: new Date(r.granted_at).toISOString(),
+      expiresAt: new Date(r.invite_expires_at).toISOString(),
+    })),
+  );
+}
+
+/** Aceite: e-mail do usuário precisa ser o convidado E o código precisa conferir (5 tentativas). */
+export async function acceptInvite(userId: string, tenantId: string, linkId: string, code: string): Promise<string> {
+  return withUser(getPool(), userId, async (c) => (await c.query("SELECT app.accept_accountant_invite($1::uuid, $2, $3) AS r", [tenantId, linkId, code])).rows[0].r as string);
+}
+
+/** Escopos do vínculo do contador em cada empresa (somente vínculos aceitos e não revogados). */
+export async function accountantScopes(userId: string): Promise<Map<string, string[]>> {
+  return withUser(getPool(), userId, async (c) => {
+    const rows = (await c.query("SELECT tenant_id, scopes FROM app.accountant_links WHERE accountant_user_id = $1 AND revoked_at IS NULL", [userId])).rows;
+    return new Map(rows.map((r) => [r.tenant_id as string, r.scopes as string[]]));
+  });
 }

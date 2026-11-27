@@ -7,8 +7,8 @@ import { TwoFactorCard } from "@/components/two-factor-card";
 import { useAction } from "@/components/use-action";
 import { downloadText } from "@/components/csv";
 import { applyTheme, getThemePref, type ThemePref } from "@/components/shell/theme";
-import { Badge, Button, Card, CardBody, CardHeader, Field, Input, Modal, PageHeader, Segmented, Select, Switch, useToast } from "@/components/ui";
-import { isLinkActive } from "@/modules/accounting/links";
+import { Badge, Button, Card, CardBody, CardHeader, Field, Input, Modal, PageHeader, Segmented, Select, Switch, Textarea, useToast } from "@/components/ui";
+import { isLinkActive, linkStatus } from "@/modules/accounting/links";
 import { PLANS } from "@/modules/billing/provider";
 import { formatBRL } from "@/modules/finance/money";
 import { todayBiz } from "@/modules/finance/dates";
@@ -82,13 +82,19 @@ export function SettingsView() {
                     {l.firm} · {l.scopes.map((x) => (x === "read" ? "leitura" : "exportação")).join(" + ")}
                   </div>
                 </div>
-                {isLinkActive(l) ? (
-                  <Button size="sm" variant="outline" onClick={() => void act("accountant.revoke", { id: l.id }, "Acesso do contador revogado.")}>
-                    Revogar
-                  </Button>
-                ) : (
-                  <Badge>Revogado</Badge>
-                )}
+                {(() => {
+                  const st = linkStatus(l, new Date().toISOString());
+                  return (
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <Badge tone={st === "ativo" ? "success" : st === "pendente" ? "warn" : "neutral"}>{st === "ativo" ? "Ativo" : st === "pendente" ? "Aguardando aceite" : st === "expirado" ? "Convite expirado" : "Revogado"}</Badge>
+                      {isLinkActive(l) && t.role !== "accountant" ? (
+                        <Button size="sm" variant="outline" onClick={() => void act("accountant.revoke", { id: l.id }, "Acesso do contador revogado.")}>
+                          Revogar
+                        </Button>
+                      ) : null}
+                    </div>
+                  );
+                })()}
               </div>
             ))}
             <Button variant="secondary" className="w-full" onClick={() => setGrantOpen(true)}>
@@ -221,13 +227,53 @@ export function SettingsView() {
 function GrantModal({ onClose }: { onClose: () => void }) {
   const act = useAction();
   const [f, setF] = useState({ accountantName: "", firm: "", email: "", exportScope: true });
+  const [invite, setInvite] = useState<{ code: string; expiresAt: string } | null>(null);
+  const [copied, setCopied] = useState(false);
+  const message = invite
+    ? `Olá, ${f.accountantName.split(" ")[0]}! Convidei você para acompanhar minha empresa no Fluxora. Entre (ou crie sua conta) com o e-mail ${f.email.trim().toLowerCase()} e use o código ${invite.code}. Ele vale até ${new Date(invite.expiresAt).toLocaleDateString("pt-BR")}.`
+    : "";
+  if (invite)
+    return (
+      <Modal
+        open
+        onClose={onClose}
+        size="sm"
+        title="Convite criado"
+        description="Envie o código ao contador por um canal seu (WhatsApp, por exemplo). Ele só aparece agora."
+        footer={<Button onClick={onClose}>Concluir</Button>}
+      >
+        <div className="space-y-4">
+          <div className="rounded-2xl bg-brand-soft p-4 text-center">
+            <div className="text-[12px] text-muted">Código do convite</div>
+            <div className="mt-1 font-mono text-[30px] font-semibold tracking-[0.2em] text-brand">{invite.code}</div>
+            <div className="mt-1 text-[12px] text-muted">Válido até {new Date(invite.expiresAt).toLocaleDateString("pt-BR")} · 5 tentativas</div>
+          </div>
+          <Textarea aria-label="Mensagem para enviar" readOnly value={message} className="text-[13px]" />
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(message);
+                setCopied(true);
+              } catch {
+                setCopied(false);
+              }
+            }}
+          >
+            {copied ? "Mensagem copiada" : "Copiar mensagem"}
+          </Button>
+          <p className="text-[12px] text-subtle">O contador precisa entrar com exatamente este e-mail. Se o código se perder, revogue e crie outro convite.</p>
+        </div>
+      </Modal>
+    );
   return (
     <Modal
       open
       onClose={onClose}
       size="sm"
       title="Convidar contador"
-      description="Na demonstração nenhum e-mail é enviado."
+      description="Gera um código de uso único. Nenhum e-mail é enviado pelo Fluxora."
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
@@ -235,11 +281,11 @@ function GrantModal({ onClose }: { onClose: () => void }) {
           </Button>
           <Button
             onClick={async () => {
-              const r = await act("accountant.grant", { accountantName: f.accountantName, firm: f.firm, email: f.email, scopes: f.exportScope ? ["read", "export"] : ["read"] }, "Vínculo criado.");
-              if (r.ok) onClose();
+              const r = await act("accountant.grant", { accountantName: f.accountantName, firm: f.firm, email: f.email, scopes: f.exportScope ? ["read", "export"] : ["read"] }, "Convite criado.");
+              if (r.ok) setInvite(r.value as { code: string; expiresAt: string });
             }}
           >
-            Autorizar acesso
+            Gerar convite
           </Button>
         </>
       }
@@ -247,8 +293,8 @@ function GrantModal({ onClose }: { onClose: () => void }) {
       <div className="grid gap-4">
         <Field label="Nome do contador">{(id) => <Input id={id} value={f.accountantName} onChange={(e) => setF({ ...f, accountantName: e.target.value })} />}</Field>
         <Field label="Escritório">{(id) => <Input id={id} value={f.firm} onChange={(e) => setF({ ...f, firm: e.target.value })} />}</Field>
-        <Field label="E-mail">{(id) => <Input id={id} type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} />}</Field>
-        <Switch checked={f.exportScope} onChange={(v) => setF({ ...f, exportScope: v })} label="Permitir exportação" description="Leitura é sempre incluída." />
+        <Field label="E-mail do contador">{(id) => <Input id={id} type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} />}</Field>
+        <Switch checked={f.exportScope} onChange={(v) => setF({ ...f, exportScope: v })} label="Permitir exportação" description="Leitura é sempre incluída. O contador nunca altera dados." />
       </div>
     </Modal>
   );

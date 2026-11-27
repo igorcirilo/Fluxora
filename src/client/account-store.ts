@@ -86,6 +86,27 @@ export class AccountStore {
     await this.refresh();
   }
 
+  async invites(): Promise<{ tenantId: string; linkId: string; companyLabel: string; scopes: string[]; grantedAt: string; expiresAt: string }[]> {
+    const r = await json<{ invites: never[] }>(await fetch("/api/accountant/invites", { cache: "no-store" }));
+    return r.invites;
+  }
+
+  async acceptInvite(tenantId: string, linkId: string, code: string): Promise<OpResult<void>> {
+    try {
+      await json(await fetch("/api/accountant/invites", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ tenantId, linkId, code }) }));
+      await this.refresh();
+      return { ok: true, value: undefined };
+    } catch (e) {
+      const err = e as Error & { code?: string };
+      return { ok: false, code: err.code ?? "UNEXPECTED", message: err.message };
+    }
+  }
+
+  async clients<T>(): Promise<T[]> {
+    const r = await json<{ clients: T[] }>(await fetch("/api/accountant/clients", { cache: "no-store" }));
+    return r.clients;
+  }
+
   async signOut() {
     await fetch("/api/auth/sign-out", { method: "POST", headers: { "content-type": "application/json" }, body: "{}" }).catch(() => undefined);
     this.set({ status: "anon", user: null, tenants: [], activeTenantId: null, state: null });

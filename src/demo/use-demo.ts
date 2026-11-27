@@ -83,10 +83,15 @@ export function useAccount(enabled: boolean): AccountSnapshot {
 
 export type Exec = <K extends CommandName>(name: K, input: CommandInput<K>) => Promise<OpResult<unknown>>;
 
+export type Role = "owner" | "operator" | "accountant";
+
 export interface TenantApi {
   mode: AppMode;
   state: TenantState;
   userName: string;
+  role: Role;
+  /** Empresas em que o usuário é contador (para o portal). */
+  hasAccountantAccess: boolean;
   exec: Exec;
 }
 
@@ -119,13 +124,16 @@ export function useTenant(): TenantApi | null {
   );
   if (mode === "conta") {
     if (acc.status !== "ready" || !acc.state || !acc.user) return null;
-    return { mode, state: acc.state, userName: acc.user.name, exec };
+    const role = (acc.tenants.find((x) => x.id === acc.activeTenantId)?.role ?? "owner") as Role;
+    return { mode, state: acc.state, userName: acc.user.name, role, hasAccountantAccess: acc.tenants.some((x) => x.role === "accountant"), exec };
   }
   if (!db || !db.session) return null;
   const state = db.tenants[db.session.tenantId];
   if (!state || !db.memberships.some((m) => m.userId === db.session!.userId && m.tenantId === db.session!.tenantId)) return null;
   const userName = db.users.find((u) => u.id === db.session!.userId)?.name ?? "Titular";
-  return { mode: "demo", state, userName, exec };
+  const mine = db.memberships.filter((m) => m.userId === db.session!.userId);
+  const role = (mine.find((m) => m.tenantId === db.session!.tenantId)?.role ?? "owner") as Role;
+  return { mode: "demo", state, userName, role, hasAccountantAccess: mine.some((m) => m.role === "accountant"), exec };
 }
 
 export function isZodError(e: unknown): e is z.ZodError {

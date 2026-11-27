@@ -68,3 +68,9 @@ Componentes reutilizáveis em `src/components/ui` (botões, cards, modais bottom
 - Certificado A1 e CSC **nunca** ficam no banco do app: só indicadores de que foram configurados no provedor de emissão.
 - Produção exige revisão do contador registrada (regra no domínio e CHECK no banco, migration 0004).
 - A emissão segue desabilitada (`DisabledFiscalProvider`) até haver provedor homologado. Roteiro para o contador: `docs/CHECKLIST-CONTADOR-NFCE.md`.
+
+## Painel do contador
+- Convite: o titular gera um código de 8 caracteres (validade 7 dias, 5 tentativas). O aceite exige e-mail igual ao convidado **e** o código (`app.accept_accountant_invite`, SECURITY DEFINER). O código nunca é lido pelo runtime (privilégio por coluna).
+- Papel `accountant` em `memberships`: leitura via RLS; escrita barrada por `app.can_write()` nas políticas de INSERT/UPDATE/DELETE de todas as tabelas de empresa e também na camada de comandos.
+- Revogar (`accountant.revoke`) dispara trigger que remove a membership na mesma transação.
+- `memberships` não força RLS para o dono da tabela, para que as funções SECURITY DEFINER administrem vínculos; o runtime continua sujeito ao RLS e sem privilégio de escrita nessa tabela.

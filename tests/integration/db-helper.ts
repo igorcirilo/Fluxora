@@ -12,7 +12,7 @@ export function urlFor(user: string, password: string, db: string) {
 }
 
 /** Banco descartável com papéis owner/runtime, migrations e dois usuários. */
-export async function createTestDb(prefix: string) {
+export async function createTestDb(prefix: string, extraEmails: string[] = []) {
   const name = `${prefix}_${Date.now().toString(36)}${Math.floor(Math.random() * 1e4)}`;
   const admin = new pg.Client({ connectionString: ADMIN });
   await admin.connect();
@@ -24,14 +24,18 @@ export async function createTestDb(prefix: string) {
   const owner = new pg.Client({ connectionString: urlFor("fluxora_owner", "test", name) });
   await owner.connect();
   await migrate(owner, undefined, () => undefined);
-  const users = (await owner.query(`INSERT INTO app.auth_user (name, email, "emailVerified") VALUES ('A','a@exemplo.test',false), ('B','b@exemplo.test',false) RETURNING id, email`)).rows;
+  const emails = ["a@exemplo.test", "b@exemplo.test", ...extraEmails];
+  const users: { id: string; email: string }[] = [];
+  for (const e of emails) users.push((await owner.query(`INSERT INTO app.auth_user (name, email, "emailVerified") VALUES ($1, $2, false) RETURNING id, email`, [e.split("@")[0], e])).rows[0]);
   await owner.end();
   const pool = new pg.Pool({ connectionString: urlFor("fluxora_app", "test", name), max: 2, options: "-c search_path=app,public" });
   return {
     name,
     pool,
-    userA: users.find((u) => u.email.startsWith("a")).id as string,
-    userB: users.find((u) => u.email.startsWith("b")).id as string,
+    userA: users.find((u) => u.email.startsWith("a@"))!.id,
+    userB: users.find((u) => u.email.startsWith("b@"))!.id,
+    userByEmail: (e: string) => users.find((u) => u.email === e)!.id,
+    adminUrl: ADMIN!,
     async drop() {
       await pool.end();
       await admin.query(`DROP DATABASE IF EXISTS ${name} WITH (FORCE)`);

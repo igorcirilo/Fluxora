@@ -1,4 +1,4 @@
-import { LayoutDashboard, ScanLine, Receipt, Package, Users, Wallet, ShieldCheck, FileText, Settings } from "lucide-react";
+import { LayoutDashboard, ScanLine, Receipt, Package, Users, Wallet, ShieldCheck, FileText, Settings, Briefcase } from "lucide-react";
 
 export const NAV = [
   { href: "/painel", label: "Painel", icon: LayoutDashboard },
@@ -10,6 +10,7 @@ export const NAV = [
   { href: "/meu-mei", label: "Meu MEI", icon: ShieldCheck },
   { href: "/fiscal", label: "Fiscal", icon: FileText },
   { href: "/configuracoes", label: "Configurações", icon: Settings },
+  { href: "/contador", label: "Contador", icon: Briefcase },
 ] as const;
 
 export const MOBILE_PRIMARY = ["/painel", "/pdv", "/vendas", "/financeiro"];

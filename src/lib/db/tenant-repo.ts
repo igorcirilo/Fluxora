@@ -65,7 +65,16 @@ export async function loadTenantState(c: PoolClient, tenantId: string): Promise<
   const fiscalDocuments: FiscalDocument[] = (await q("SELECT * FROM app.fiscal_documents WHERE tenant_id = $1 ORDER BY created_at, id")).map((r) => ({
     id: r.id, type: r.type, saleId: opt(r.sale_id), status: r.status, protocol: opt(r.protocol), createdAt: ts(r.created_at), events: ev.filter((e) => e.document_id === r.id).map((e) => ({ to: e.to_status, at: ts(e.created_at), protocol: opt(e.protocol), message: opt(e.message) })),
   }));
-  const accountantLinks: AccountantLink[] = (await q("SELECT * FROM app.accountant_links WHERE tenant_id = $1 ORDER BY granted_at, id")).map((r) => ({ id: r.id, accountantName: r.accountant_name, firm: r.firm, email: r.email, scopes: r.scopes, grantedAt: ts(r.granted_at), revokedAt: r.revoked_at ? ts(r.revoked_at) : undefined }));
+  // Colunas explícitas: o código do convite não é legível pelo runtime (privilégio por coluna).
+  const accountantLinks: AccountantLink[] = (
+    await q("SELECT id, accountant_name, firm, email, scopes, granted_at, revoked_at, company_label, invite_expires_at, accepted_at, accountant_user_id FROM app.accountant_links WHERE tenant_id = $1 ORDER BY granted_at, id")
+  ).map((r) => ({
+    id: r.id, accountantName: r.accountant_name, firm: r.firm, email: r.email, scopes: r.scopes, grantedAt: ts(r.granted_at), revokedAt: r.revoked_at ? ts(r.revoked_at) : undefined,
+    ...(r.company_label ? { companyLabel: r.company_label } : {}),
+    ...(r.invite_expires_at ? { inviteExpiresAt: ts(r.invite_expires_at) } : {}),
+    ...(r.accepted_at ? { acceptedAt: ts(r.accepted_at) } : {}),
+    ...(r.accountant_user_id ? { accountantUserId: r.accountant_user_id } : {}),
+  }));
   const audit: AuditEntry[] = (await q("SELECT * FROM (SELECT * FROM app.audit_logs WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 300) a ORDER BY created_at, id")).map((r) => ({ id: r.id, at: ts(r.created_at), actor: r.actor_user_id ?? "sistema", action: r.action, entity: r.entity, entityId: r.entity_id, details: opt(r.details) }));
   const [fs] = await q("SELECT * FROM app.fiscal_settings WHERE tenant_id = $1");
   const fiscal: FiscalSettings = fs
@@ -220,8 +229,11 @@ export async function persistDiff(c: PoolClient, before: TenantState, after: Ten
   }
 
   const lnk = diffBy(before.accountantLinks, after.accountantLinks, (x) => x.id);
-  for (const x of lnk.added) await ins("INSERT INTO app.accountant_links (tenant_id,id,accountant_name,firm,email,scopes,granted_at,revoked_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)", [x.id, x.accountantName, x.firm, x.email, x.scopes, x.grantedAt, x.revokedAt ?? null]);
-  for (const { after: x } of lnk.changed) await ins("UPDATE app.accountant_links SET revoked_at=$3 WHERE tenant_id=$1 AND id=$2", [x.id, x.revokedAt ?? null]);
+  for (const x of lnk.added)
+    await ins("INSERT INTO app.accountant_links (tenant_id,id,accountant_name,firm,email,scopes,granted_at,revoked_at,company_label,invite_code,invite_expires_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)", [
+      x.id, x.accountantName, x.firm, x.email, x.scopes, x.grantedAt, x.revokedAt ?? null, x.companyLabel ?? "", x.inviteCode ?? null, x.inviteExpiresAt ?? null,
+    ]);
+  for (const { before: b, after: x } of lnk.changed) if (b.revokedAt !== x.revokedAt) await ins("UPDATE app.accountant_links SET revoked_at=$3 WHERE tenant_id=$1 AND id=$2", [x.id, x.revokedAt ?? null]);
 
   for (const [k, v] of Object.entries(after.idempotency)) {
     if (before.idempotency[k]) continue;

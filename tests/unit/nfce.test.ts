@@ -71,3 +71,27 @@ describe("prontidão da NFC-e", () => {
     expect(issues.some((i) => i.includes("sem NCM"))).toBe(true);
   });
 });
+
+import { inviteCodeFrom, linkStatus } from "@/modules/accounting/links";
+import { grantAccountant } from "@/modules/tenants/ops";
+import { makeCtx } from "@/modules/tenants/state";
+
+describe("convite do contador", () => {
+  it("código vem da parte aleatória do identificador (nunca fixo)", () => {
+    expect(inviteCodeFrom("inv_3f9a1c2b-0000-4000-8000-000000000000")).toBe("3F9A1C2B");
+    const codes = new Set(Array.from({ length: 50 }, () => inviteCodeFrom(`inv_${crypto.randomUUID()}`)));
+    expect(codes.size).toBe(50);
+    expect([...codes].every((c) => /^[A-F0-9]{8}$/.test(c) && c !== "00000000")).toBe(true);
+    expect(() => inviteCodeFrom("inv_xyz")).toThrow();
+  });
+
+  it("convite gera código, validade de 7 dias e bloqueia duplicidade por e-mail", () => {
+    const c = makeCtx({ now: new Date("2026-11-27T12:00:00Z"), today: "2026-11-27" });
+    const r = grantAccountant(tenantState(), { accountantName: "Mônica", firm: "X", email: "M@x.test", scopes: ["read"] }, c);
+    expect(r.value.code).toMatch(/^[A-F0-9]{8}$/);
+    expect(r.value.expiresAt).toBe("2026-12-04T12:00:00.000Z");
+    expect(linkStatus(r.state.accountantLinks[0]!, "2026-11-28T00:00:00Z")).toBe("pendente");
+    expect(linkStatus(r.state.accountantLinks[0]!, "2026-12-05T00:00:00Z")).toBe("expirado");
+    expect(() => grantAccountant(r.state, { accountantName: "Outra", firm: "Y", email: "m@x.test", scopes: ["read"] }, c)).toThrow(/Já existe/);
+  });
+});

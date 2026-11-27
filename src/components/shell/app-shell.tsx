@@ -63,6 +63,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const toggleTheme = () => applyTheme(document.documentElement.classList.contains("dark") ? "light" : "dark");
   const demo = t.mode === "demo";
+  const readOnly = t.role === "accountant";
+  const navItems = NAV.filter((n) => (n.href === "/contador" ? t.hasAccountantAccess : !(readOnly && n.href === "/pdv")));
+  const primary = readOnly ? ["/contador", "/painel", "/vendas", "/financeiro"] : MOBILE_PRIMARY;
   const logout = async () => {
     if (demo) {
       getStore()?.logout();
@@ -98,7 +101,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
           <nav className="flex-1 space-y-0.5 overflow-y-auto px-3" aria-label="Principal">
-            {NAV.map(({ href, label, icon: Icon }) => (
+            {navItems.map(({ href, label, icon: Icon }) => (
               <Link
                 key={href}
                 href={href}
@@ -164,13 +167,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </button>
           </header>
 
+          {readOnly ? (
+            <div className="border-b border-info/20 bg-info-soft px-4 py-2 text-center text-[12.5px] font-medium text-info" role="status">
+              Somente leitura: você está vendo {t.state.tenant.tradeName} como contador(a).
+            </div>
+          ) : null}
           <main className="mx-auto w-full max-w-[1400px] flex-1 px-4 pt-5 pb-28 sm:px-6 lg:px-8 lg:pt-8 lg:pb-10">{children}</main>
         </div>
 
         {/* Navegação inferior mobile */}
         <nav className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-line bg-elevated/90 backdrop-blur-xl lg:hidden" aria-label="Navegação inferior">
           <div className="grid grid-cols-5">
-            {NAV.filter((n) => MOBILE_PRIMARY.includes(n.href)).map(({ href, label, icon: Icon }) => (
+            {navItems.filter((n) => primary.includes(n.href)).map(({ href, label, icon: Icon }) => (
               <Link
                 key={href}
                 href={href}
@@ -185,7 +193,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             ))}
             <button
               onClick={() => setMore(true)}
-              className={cn("flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium", NAV.some((n) => !MOBILE_PRIMARY.includes(n.href) && active(n.href)) ? "text-brand" : "text-muted")}
+              className={cn("flex flex-col items-center gap-0.5 py-2 text-[11px] font-medium", navItems.some((n) => !primary.includes(n.href) && active(n.href)) ? "text-brand" : "text-muted")}
               aria-haspopup="dialog"
             >
               <span className="grid h-7 w-12 place-items-center rounded-full">
@@ -202,7 +210,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <div className="animate-sheet pb-safe absolute inset-x-0 bottom-0 rounded-t-3xl border border-line bg-elevated p-4">
               <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-line-strong" />
               <div className="grid grid-cols-3 gap-2">
-                {NAV.filter((n) => !MOBILE_PRIMARY.includes(n.href)).map(({ href, label, icon: Icon }) => (
+                {navItems.filter((n) => !primary.includes(n.href)).map(({ href, label, icon: Icon }) => (
                   <Link
                     key={href}
                     href={href}

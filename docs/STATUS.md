@@ -30,7 +30,8 @@ Legenda: ✅ feito · 🧪 coberto por teste automatizado · ⏳ pendente · �
 | Variantes, kits, FIFO por lote, importação XML de NF-e | ⏳ |
 | Serviços: agenda, profissionais, comissão, orçamento PDF, OS | ⏳ |
 | Catálogo público com QR | ⏳ |
-| Painel do contador (multi-empresa), superadmin | ⏳ (vínculo revogável já modelado) |
+| Painel do contador: convite por e-mail + código de uso único (5 tentativas, 7 dias), somente leitura garantido pelo banco, revogação imediata, resumo por empresa, exportação CSV/JSON | ✅ 🧪 (integração + E2E) |
+| Superadmin | ⏳ |
 
 ## Backend e segurança
 | Item | Estado |

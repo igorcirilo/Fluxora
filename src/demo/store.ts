@@ -12,7 +12,7 @@ import { DEMO_TENANT_A, DEMO_TENANT_B, blankTenant, seedDoceria, seedStudio } fr
 export interface DemoUser {
   id: string;
   name: string;
-  role: "owner" | "operator";
+  role: "owner" | "operator" | "accountant";
 }
 
 export interface Membership {
@@ -29,8 +29,8 @@ export interface DemoDb {
   session: { userId: string; tenantId: string } | null;
 }
 
-export const DB_VERSION = 4;
-export const STORAGE_KEY = "fluxora.demo.v4";
+export const DB_VERSION = 5;
+export const STORAGE_KEY = "fluxora.demo.v5";
 
 export interface KeyValueStorage {
   getItem(k: string): string | null;
@@ -47,10 +47,13 @@ export function freshDb(today = todayBiz()): DemoDb {
     users: [
       { id: "usr_ana", name: "Ana (titular fictícia)", role: "owner" },
       { id: "usr_bruno", name: "Bruno (titular fictício)", role: "owner" },
+      { id: "usr_monica", name: "Mônica (contadora fictícia)", role: "accountant" },
     ],
     memberships: [
       { userId: "usr_ana", tenantId: DEMO_TENANT_A, role: "owner" },
       { userId: "usr_bruno", tenantId: DEMO_TENANT_B, role: "owner" },
+      { userId: "usr_monica", tenantId: DEMO_TENANT_A, role: "accountant" },
+      { userId: "usr_monica", tenantId: DEMO_TENANT_B, role: "accountant" },
     ],
     session: null,
   };
@@ -167,7 +170,8 @@ export class DemoStore {
     try {
       if (!db.session) throw new DomainError("TENANT_ACCESS_DENIED", "Sessão expirada.");
       const { userId, tenantId } = db.session;
-      this.assertMember(db, userId, tenantId);
+      const m = this.assertMember(db, userId, tenantId);
+      if (m.role === "accountant") throw new DomainError("TENANT_ACCESS_DENIED", "Acesso de contador é somente leitura.");
       const out = op(db.tenants[tenantId]!, this.ctx(userId));
       const next = "state" in out && "value" in out ? out : { state: out as TenantState, value: undefined as T };
       if (next.state.tenant.id !== tenantId) throw new DomainError("TENANT_ACCESS_DENIED", "Operação tentou alterar outra empresa.");
@@ -176,6 +180,20 @@ export class DemoStore {
     } catch (e) {
       return toErr(e);
     }
+  }
+
+  /** Papel do usuário da sessão na empresa ativa. */
+  currentRole(): Membership["role"] | null {
+    const db = this.load();
+    if (!db.session) return null;
+    return db.memberships.find((m) => m.userId === db.session!.userId && m.tenantId === db.session!.tenantId)?.role ?? null;
+  }
+
+  /** Empresas em que o usuário da sessão é contador (somente leitura). */
+  accountantClients(): TenantState[] {
+    const db = this.load();
+    if (!db.session) return [];
+    return db.memberships.filter((m) => m.userId === db.session!.userId && m.role === "accountant").map((m) => db.tenants[m.tenantId]!).filter(Boolean);
   }
 
   /** Exportação (portabilidade/LGPD) restrita ao tenant da sessão. */

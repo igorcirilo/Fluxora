@@ -30,7 +30,8 @@ export function AccountEntry() {
     setMode("conta");
     await getAccountStore()!.refresh();
     const s = getAccountStore()!.getSnapshot();
-    router.push(s.status === "no-tenant" ? "/conta/empresa" : "/painel");
+    const onlyAccountant = s.tenants.length > 0 && s.tenants.every((x) => x.role === "accountant");
+    router.push(s.status === "no-tenant" ? "/conta/empresa" : onlyAccountant ? "/contador" : "/painel");
   };
 
   const submit = async (e: React.FormEvent) => {

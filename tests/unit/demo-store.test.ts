@@ -86,3 +86,16 @@ describe("isolamento entre tenants (modo demo)", () => {
     expect(store.createBlankTenant({ tradeName: "", openedOn: "2026-11-01", segment: "comercio", ownerName: "" }).ok).toBe(false);
   });
 });
+
+describe("contadora fictícia (modo demo)", () => {
+  it("lê as duas empresas, tem escopo de exportação e não consegue escrever", () => {
+    const store = new DemoStore(new MemoryStorage(), clock);
+    expect(store.login("usr_monica").ok).toBe(true);
+    expect(store.currentRole()).toBe("accountant");
+    const clients = store.accountantClients();
+    expect(clients.map((c) => c.tenant.id).sort()).toEqual([DEMO_TENANT_A, DEMO_TENANT_B].sort());
+    expect(clients.every((c) => c.accountantLinks.some((l) => l.accountantUserId === "usr_monica" && l.scopes.includes("export")))).toBe(true);
+    const r = store.run((s, c) => createProduct(s, { name: "X", sku: "X-01", category: "x", unit: "un", priceCents: 1, costCents: 0, minStock: 0, trackStock: false }, c));
+    expect(r).toMatchObject({ ok: false, code: "TENANT_ACCESS_DENIED" });
+  });
+});

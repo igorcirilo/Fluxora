@@ -245,11 +245,14 @@ function build(profile: Profile, today: BizDate): TenantState {
     accountantLinks: [
       {
         id: "lnk_1",
-        accountantName: "Mônica Exemplo (fictícia)",
+        accountantName: "Mônica (contadora fictícia)",
         firm: "Escritório Contábil Exemplo",
         email: "contato@contabil.exemplo",
         scopes: ["read", "export"],
         grantedAt: `${start}T12:00:00.000Z`,
+        companyLabel: profile.tenant.tradeName,
+        acceptedAt: `${start}T13:00:00.000Z`,
+        accountantUserId: "usr_monica",
       },
     ],
     audit: s.audit.slice(-300),
