@@ -106,20 +106,35 @@ export function PurchaseModal({ state, onClose }: { state: TenantState; onClose:
 
           <div className="space-y-2">
             {lines.map((l, i) => (
-              <div key={i} className="grid grid-cols-2 gap-2 rounded-2xl border border-line p-3 sm:grid-cols-[2fr_80px_120px_100px_140px_auto]">
-                <Select aria-label="Produto" className="col-span-2 sm:col-span-1" value={l.productId} onChange={(e) => set(i, { productId: e.target.value })}>
-                  {stockItems.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </Select>
-                <Input aria-label="Quantidade" type="number" min={1} inputMode="numeric" placeholder="Qtd." value={l.qty} onChange={(e) => set(i, { qty: e.target.value })} />
-                <MoneyInput aria-label="Custo unitário" placeholder="Custo un." value={l.cost} onChange={(e) => set(i, { cost: e.target.value })} />
-                <Input aria-label="Lote" placeholder="Lote" maxLength={40} value={l.lot} onChange={(e) => set(i, { lot: e.target.value })} />
-                <Input aria-label="Validade" type="date" value={l.expiresOn} onChange={(e) => set(i, { expiresOn: e.target.value })} />
+              <div key={i} className="grid grid-cols-2 items-end gap-2 rounded-2xl border border-line p-3 sm:grid-cols-[2fr_80px_120px_100px_150px_auto]">
+                <label className="col-span-2 space-y-1 sm:col-span-1">
+                  <span className="block text-[11.5px] font-medium text-muted">Produto</span>
+                  <Select aria-label="Produto" value={l.productId} onChange={(e) => set(i, { productId: e.target.value })}>
+                    {stockItems.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </Select>
+                </label>
+                <label className="space-y-1">
+                  <span className="block text-[11.5px] font-medium text-muted">Quantidade</span>
+                  <Input aria-label="Quantidade" type="number" min={1} inputMode="numeric" value={l.qty} onChange={(e) => set(i, { qty: e.target.value })} />
+                </label>
+                <label className="space-y-1">
+                  <span className="block text-[11.5px] font-medium text-muted">Custo unitário</span>
+                  <MoneyInput aria-label="Custo unitário" value={l.cost} onChange={(e) => set(i, { cost: e.target.value })} />
+                </label>
+                <label className="space-y-1">
+                  <span className="block text-[11.5px] font-medium text-muted">Lote (opcional)</span>
+                  <Input aria-label="Lote" maxLength={40} value={l.lot} onChange={(e) => set(i, { lot: e.target.value })} />
+                </label>
+                <label className="space-y-1">
+                  <span className="block text-[11.5px] font-medium text-muted">Validade (opcional)</span>
+                  <Input aria-label="Validade" type="date" value={l.expiresOn} onChange={(e) => set(i, { expiresOn: e.target.value })} />
+                </label>
                 {lines.length > 1 ? (
-                  <Button variant="ghost" size="icon" aria-label="Remover item" onClick={() => setLines((ls) => ls.filter((_, j) => j !== i))}>
+                  <Button variant="ghost" size="icon" className="col-span-2 justify-self-end sm:col-span-1" aria-label="Remover item" onClick={() => setLines((ls) => ls.filter((_, j) => j !== i))}>
                     <X size={16} />
                   </Button>
                 ) : (
