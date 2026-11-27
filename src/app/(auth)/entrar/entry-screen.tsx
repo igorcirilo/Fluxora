@@ -1,10 +1,11 @@
 "use client";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { ArrowRight, Cake, Sparkles, Store, ShieldCheck, Wallet, ScanLine, FlaskConical, Plus, Lock } from "lucide-react";
 import { Logo } from "@/components/shell/logo";
 import { Button, Field, Input, Modal, Segmented } from "@/components/ui";
-import { getStore, useDemoDb } from "@/demo/use-demo";
+import { getStore, setMode, useDemoDb } from "@/demo/use-demo";
 import { DEMO_TENANT_A, DEMO_TENANT_B } from "@/demo/seed";
 import { todayBiz } from "@/modules/finance/dates";
 
@@ -27,7 +28,10 @@ export function EntryScreen() {
     // Pequeno atraso para o carregamento inicial dos dados fictícios não travar a interação.
     setTimeout(() => {
       const r = getStore()?.login(userId);
-      if (r?.ok) router.push("/painel");
+      if (r?.ok) {
+        setMode("demo");
+        router.push("/painel");
+      }
       else setLoading(null);
     }, 30);
   };
@@ -36,6 +40,7 @@ export function EntryScreen() {
     const r = getStore()?.createBlankTenant(form);
     if (!r) return;
     if (!r.ok) return setError(r.message);
+    setMode("demo");
     router.push("/painel");
   };
 
@@ -116,10 +121,16 @@ export function EntryScreen() {
             </button>
           </div>
 
-          <div className="mt-6 flex items-start gap-2 text-[12px] text-subtle">
-            <Lock size={13} className="mt-0.5 shrink-0" />
-            <p>Login real (e-mail, senha forte, MFA para administradores) será ativado com o banco PostgreSQL. Nesta demonstração não há contas reais.</p>
-          </div>
+          <Link href="/conta" className="mt-6 flex items-center gap-3 rounded-2xl border border-line bg-surface p-4 transition hover:border-brand/40">
+            <span className="grid h-11 w-11 place-items-center rounded-xl bg-brand-soft text-brand">
+              <Lock size={19} />
+            </span>
+            <span className="flex-1">
+              <span className="block text-[14.5px] font-semibold">Entrar com conta real</span>
+              <span className="block text-[12.5px] text-muted">Login seguro e dados salvos no PostgreSQL (beta)</span>
+            </span>
+            <ArrowRight size={18} className="text-subtle" />
+          </Link>
         </div>
       </section>
 

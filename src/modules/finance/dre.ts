@@ -5,6 +5,7 @@ import { compareBiz, type BizDate } from "./dates";
 
 /**
  * DRE gerencial simplificada (competência para receita, custo pelas vendas, despesas por caixa).
+ * Compras de mercadoria (inventory_purchase) NÃO são despesa: o custo entra pelo CMV quando vendida.
  * É gerencial: não substitui escrituração contábil.
  */
 export interface SimpleDre {

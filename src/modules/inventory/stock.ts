@@ -30,6 +30,8 @@ export interface StockMovement {
   unitCostCents?: Cents;
   sourceId?: string;
   note?: string;
+  lot?: string;
+  expiresOn?: BizDate;
 }
 
 export const STOCK_MOVEMENT_LABEL: Record<StockMovementType, string> = {
@@ -71,6 +73,8 @@ export function makeStockMovement(params: {
   note?: string;
   sourceId?: string;
   unitCostCents?: Cents;
+  lot?: string;
+  expiresOn?: BizDate;
 }): StockMovement {
   assertQuantity(params.quantity);
   const outgoing = params.type === "sale" || params.type === "loss";
@@ -91,5 +95,7 @@ export function makeStockMovement(params: {
     note: params.note,
     sourceId: params.sourceId,
     unitCostCents: params.unitCostCents,
+    ...(params.lot ? { lot: params.lot } : {}),
+    ...(params.expiresOn ? { expiresOn: params.expiresOn } : {}),
   };
 }

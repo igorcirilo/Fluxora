@@ -1,3 +1,4 @@
+import { z } from "zod";
 import { DomainError, isDomainError } from "@/lib/errors";
 import { makeCtx, type Ctx, type TenantState } from "@/modules/tenants/state";
 import { todayBiz } from "@/modules/finance/dates";
@@ -28,8 +29,8 @@ export interface DemoDb {
   session: { userId: string; tenantId: string } | null;
 }
 
-export const DB_VERSION = 3;
-export const STORAGE_KEY = "fluxora.demo.v3";
+export const DB_VERSION = 4;
+export const STORAGE_KEY = "fluxora.demo.v4";
 
 export interface KeyValueStorage {
   getItem(k: string): string | null;
@@ -194,5 +195,6 @@ export class DemoStore {
 
 function toErr(e: unknown): { ok: false; code: string; message: string } {
   if (isDomainError(e)) return { ok: false, code: e.code, message: e.message };
+  if (e instanceof z.ZodError) return { ok: false, code: "VALIDATION_ERROR", message: `Dados inválidos: ${e.issues.map((i) => i.path.join(".") || i.message).join(", ")}` };
   return { ok: false, code: "UNEXPECTED", message: "Erro inesperado. Tente novamente." };
 }

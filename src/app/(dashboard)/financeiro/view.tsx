@@ -11,7 +11,6 @@ import { addDays, compareBiz, formatBizDate, monthLabel, monthStart, nextMonthSt
 import { accountBalance, monthlyCashReport, type CashCategory } from "@/modules/finance/cash";
 import { simpleDre } from "@/modules/finance/dre";
 import { openCents, settledCents, titleStatus, type Title, type TitleKind } from "@/modules/finance/titles";
-import { addMovement, createTitles, reverseMovement, settleTitle, transfer } from "@/modules/finance/ops";
 import { cogsInRange } from "@/demo/selectors";
 import type { TenantState } from "@/modules/tenants/state";
 
@@ -24,6 +23,7 @@ const CATEGORY_LABEL: Record<CashCategory, string> = {
   other_income: "Outras entradas",
   expense: "Despesas",
   payable_settlement: "Contas pagas",
+  inventory_purchase: "Compras de mercadoria",
   fee: "Taxas",
   owner_withdrawal: "Retiradas do titular",
   capital_contribution: "Aportes do titular",
@@ -321,8 +321,8 @@ function Titles({ state, kind, today, onNew }: { state: TenantState; kind: Title
         <SettleModal
           title={settling}
           onClose={() => setSettling(null)}
-          onConfirm={(amount, date, accountId) => {
-            const r = act((s, c) => settleTitle(s, { titleId: settling.id, amountCents: amount, date, accountId }, c), "Liquidação registrada.");
+          onConfirm={async (amount, date, accountId) => {
+            const r = await act("title.settle", { titleId: settling.id, amountCents: amount, date, accountId }, "Liquidação registrada.");
             if (r.ok) setSettling(null);
           }}
           accounts={state.accounts}
@@ -432,7 +432,7 @@ function Movements({ state, y, m, onNew }: { state: TenantState; y: number; m: n
         ) : (
           <ul className="divide-y divide-line">
             {list.slice(0, limit).map((x) => {
-              const canReverse = !x.sourceId && !["transfer", "reversal", "opening_balance", "receivable_settlement", "payable_settlement", "refund"].includes(x.category) && !reversed.has(x.id);
+              const canReverse = !x.sourceId && !["transfer", "reversal", "opening_balance", "receivable_settlement", "payable_settlement", "inventory_purchase", "refund"].includes(x.category) && !reversed.has(x.id);
               return (
                 <li key={x.id} className="flex items-center gap-3 px-4 py-2.5 sm:px-5">
                   <span
@@ -459,7 +459,7 @@ function Movements({ state, y, m, onNew }: { state: TenantState; y: number; m: n
                       size="icon"
                       aria-label={`Estornar ${x.description}`}
                       title="Estornar (mantém histórico)"
-                      onClick={() => act((s, c) => reverseMovement(s, x.id, c), "Estorno registrado.")}
+                      onClick={() => void act("movement.reverse", { movementId: x.id }, "Estorno registrado.")}
                     >
                       <RotateCcw size={15} />
                     </Button>
@@ -514,8 +514,8 @@ function MovementForm({ onClose }: { onClose: () => void }) {
           </Button>
           <Button
             disabled={cents === null || !desc.trim()}
-            onClick={() => {
-              const r = act((s, c) => addMovement(s, { accountId: account, date, direction: def.dir, amountCents: cents!, category: cat, description: desc }, c), "Lançamento registrado.");
+            onClick={async () => {
+              const r = await act("movement.add", { accountId: account, date, direction: def.dir, amountCents: cents!, category: cat as "expense", description: desc }, "Lançamento registrado.");
               if (r.ok) onClose();
             }}
           >
@@ -585,8 +585,8 @@ function TransferForm({ state, onClose }: { state: TenantState; onClose: () => v
           </Button>
           <Button
             disabled={cents === null || from === to}
-            onClick={() => {
-              const r = act((s, c) => transfer(s, { from, to, date, amountCents: cents!, description: "Transferência entre contas" }, c), "Transferência registrada.");
+            onClick={async () => {
+              const r = await act("transfer.create", { from, to, date, amountCents: cents!, description: "Transferência entre contas" }, "Transferência registrada.");
               if (r.ok) onClose();
             }}
           >
@@ -656,25 +656,8 @@ function TitleForm({ kind, state, onClose }: { kind: TitleKind; state: TenantSta
           </Button>
           <Button
             disabled={cents === null || !f.description.trim() || !(n >= 1 && n <= 48)}
-            onClick={() => {
-              const r = act(
-                (s, c) =>
-                  createTitles(
-                    s,
-                    {
-                      kind,
-                      description: f.description,
-                      counterpartyId: f.counterparty || undefined,
-                      competenceDate: f.competence,
-                      firstDueDate: f.due,
-                      totalCents: cents!,
-                      installments: n,
-                      category: f.category,
-                    },
-                    c,
-                  ),
-                "Título(s) criado(s).",
-              );
+            onClick={async () => {
+              const r = await act("title.create", { kind, description: f.description, counterpartyId: f.counterparty || undefined, competenceDate: f.competence, firstDueDate: f.due, totalCents: cents!, installments: n, category: f.category }, "Título(s) criado(s).");
               if (r.ok) onClose();
             }}
           >

@@ -8,8 +8,6 @@ import { Badge, Button, Card, EmptyState, Modal, PageHeader, SearchInput, Segmen
 import { formatBRL } from "@/modules/finance/money";
 import { addDays, compareBiz, formatBizDate, todayBiz } from "@/modules/finance/dates";
 import { PAYMENT_LABEL, type Sale } from "@/modules/sales/types";
-import { returnSale } from "@/modules/sales/returns";
-import { createFiscalDraft } from "@/modules/fiscal/ops";
 import { FISCAL_DOC_LABEL, FISCAL_STATUS_LABEL } from "@/modules/fiscal/provider";
 import { downloadCsv } from "@/components/csv";
 
@@ -160,7 +158,7 @@ export function SalesView() {
           fiscal={t.state.fiscalDocuments.find((d) => d.saleId === sale.id && d.status !== "cancelled")}
           onClose={() => setOpenId(null)}
           onReturn={() => setConfirmReturn(true)}
-          onDraft={(type) => act((s, c) => createFiscalDraft(s, { saleId: sale.id, type }, c), "Rascunho fiscal criado. O envio depende de provedor homologado.")}
+          onDraft={(type) => void act("fiscal.draft", { saleId: sale.id, type }, "Rascunho fiscal criado. O envio depende de provedor homologado.")}
         />
       ) : null}
 
@@ -177,8 +175,8 @@ export function SalesView() {
             </Button>
             <Button
               variant="danger"
-              onClick={() => {
-                const r = act((s, c) => returnSale(s, sale!.id, c), "Devolução registrada.");
+              onClick={async () => {
+                const r = await act("sale.return", { saleId: sale!.id }, "Devolução registrada.");
                 if (r.ok) setConfirmReturn(false);
               }}
             >

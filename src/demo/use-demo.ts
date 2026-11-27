@@ -1,22 +1,67 @@
 "use client";
-import { useCallback, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useSyncExternalStore } from "react";
+import { z } from "zod";
 import { DemoStore, type DemoDb, type OpResult } from "./store";
-import type { Ctx, TenantState } from "@/modules/tenants/state";
+import { AccountStore, type AccountSnapshot } from "@/client/account-store";
+import { runCommand, type CommandInput, type CommandName } from "@/modules/commands";
+import type { TenantState } from "@/modules/tenants/state";
 
-let singleton: DemoStore | null = null;
+/**
+ * Fonte de dados da interface. Dois modos com a MESMA API e os MESMOS comandos:
+ * - "demo": DemoStore no navegador (dados fictícios);
+ * - "conta": AccountStore → /api/app/* → PostgreSQL com RLS.
+ */
+export type AppMode = "demo" | "conta";
+const MODE_KEY = "fluxora.mode";
+
+let demo: DemoStore | null = null;
+let account: AccountStore | null = null;
 
 export function getStore(): DemoStore | null {
   if (typeof window === "undefined") return null;
-  if (!singleton) {
+  if (!demo) {
     let storage: Storage | null = null;
     try {
       storage = window.localStorage;
     } catch {
       storage = null;
     }
-    singleton = new DemoStore(storage);
+    demo = new DemoStore(storage);
   }
-  return singleton;
+  return demo;
+}
+
+export function getAccountStore(): AccountStore | null {
+  if (typeof window === "undefined") return null;
+  if (!account) account = new AccountStore();
+  return account;
+}
+
+const modeListeners = new Set<() => void>();
+export function getMode(): AppMode {
+  try {
+    return localStorage.getItem(MODE_KEY) === "conta" ? "conta" : "demo";
+  } catch {
+    return "demo";
+  }
+}
+export function setMode(m: AppMode) {
+  try {
+    localStorage.setItem(MODE_KEY, m);
+  } catch {
+    /* preferência só nesta aba */
+  }
+  for (const l of modeListeners) l();
+}
+export function useMode(): AppMode | null {
+  return useSyncExternalStore(
+    (fn) => {
+      modeListeners.add(fn);
+      return () => modeListeners.delete(fn);
+    },
+    getMode,
+    () => null,
+  );
 }
 
 const noop = () => () => {};
@@ -26,21 +71,63 @@ export function useDemoDb(): DemoDb | null {
   return useSyncExternalStore(store ? store.subscribe : noop, store ? store.getSnapshot : () => null, () => null);
 }
 
-export interface TenantApi {
-  db: DemoDb;
-  state: TenantState;
-  userName: string;
-  run: <T = void>(op: (s: TenantState, c: Ctx) => TenantState | { state: TenantState; value: T }) => OpResult<T>;
+const EMPTY: AccountSnapshot = { status: "idle", user: null, tenants: [], activeTenantId: null, state: null };
+export function useAccount(enabled: boolean): AccountSnapshot {
+  const store = getAccountStore();
+  const snap = useSyncExternalStore(store && enabled ? store.subscribe : noop, store && enabled ? store.getSnapshot : () => EMPTY, () => EMPTY);
+  useEffect(() => {
+    if (enabled) store?.ensureLoaded();
+  }, [enabled, store]);
+  return snap;
 }
 
-/** Acesso ao tenant da sessão. Retorna null enquanto carrega ou sem sessão. */
-export function useTenant(): TenantApi | null {
+export type Exec = <K extends CommandName>(name: K, input: CommandInput<K>) => Promise<OpResult<unknown>>;
+
+export interface TenantApi {
+  mode: AppMode;
+  state: TenantState;
+  userName: string;
+  exec: Exec;
+}
+
+/** Status do carregamento para o shell decidir entre conteúdo, carregamento ou redirecionamento. */
+export function useAppStatus(): { mode: AppMode | null; status: "loading" | "ready" | "redirect-demo" | AccountSnapshot["status"] } {
+  const mode = useMode();
   const db = useDemoDb();
-  const store = getStore();
-  const run = useCallback(<T>(op: (s: TenantState, c: Ctx) => TenantState | { state: TenantState; value: T }) => store!.run<T>(op), [store]);
-  if (!db || !db.session || !store) return null;
+  const acc = useAccount(mode === "conta");
+  if (mode === null) return { mode, status: "loading" };
+  if (mode === "demo") {
+    if (!db) return { mode, status: "loading" };
+    const ok = db.session && db.memberships.some((m) => m.userId === db.session!.userId && m.tenantId === db.session!.tenantId) && db.tenants[db.session.tenantId];
+    return { mode, status: ok ? "ready" : "redirect-demo" };
+  }
+  return { mode, status: acc.status === "idle" ? "loading" : acc.status };
+}
+
+export function useTenant(): TenantApi | null {
+  const mode = useMode();
+  const db = useDemoDb();
+  const acc = useAccount(mode === "conta");
+  const exec = useCallback<Exec>(
+    async (name, input) => {
+      if (getMode() === "conta") return getAccountStore()!.exec(name, input);
+      const r = getStore()!.run<unknown>((s, c) => runCommand(name, input, s, c));
+      if (!r.ok && r.code === "UNEXPECTED") return r;
+      return r;
+    },
+    [],
+  );
+  if (mode === "conta") {
+    if (acc.status !== "ready" || !acc.state || !acc.user) return null;
+    return { mode, state: acc.state, userName: acc.user.name, exec };
+  }
+  if (!db || !db.session) return null;
   const state = db.tenants[db.session.tenantId];
   if (!state || !db.memberships.some((m) => m.userId === db.session!.userId && m.tenantId === db.session!.tenantId)) return null;
   const userName = db.users.find((u) => u.id === db.session!.userId)?.name ?? "Titular";
-  return { db, state, userName, run };
+  return { mode: "demo", state, userName, exec };
+}
+
+export function isZodError(e: unknown): e is z.ZodError {
+  return e instanceof z.ZodError;
 }

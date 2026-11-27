@@ -17,7 +17,7 @@ const Body = z.object({
         date: zBizDate,
         direction: z.enum(["in", "out"]),
         amountCents: zCents.positive(),
-        category: z.enum(["opening_balance", "sale_receipt", "receivable_settlement", "other_income", "expense", "payable_settlement", "fee", "owner_withdrawal", "capital_contribution", "loan", "transfer", "refund", "reversal"]),
+        category: z.enum(["opening_balance", "sale_receipt", "receivable_settlement", "other_income", "expense", "payable_settlement", "inventory_purchase", "fee", "owner_withdrawal", "capital_contribution", "loan", "transfer", "refund", "reversal"]),
         description: z.string().max(200).default(""),
         transferId: z.string().max(64).optional(),
       }),

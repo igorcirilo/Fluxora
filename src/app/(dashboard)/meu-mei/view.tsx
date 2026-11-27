@@ -9,8 +9,6 @@ import { formatBRL, parseCents } from "@/modules/finance/money";
 import { formatBizDate, monthLabel, parts, todayBiz } from "@/modules/finance/dates";
 import { LIMIT_STATUS_LABEL, grossRevenue, type LimitStatus } from "@/modules/mei/limit";
 import { CALENDAR_VERSION, type DasObligation } from "@/modules/mei/calendar";
-import { registerDasPayment } from "@/modules/mei/ops";
-import { importHistoricalRevenue } from "@/modules/finance/ops";
 
 const STATUS_TEXT: Record<LimitStatus, string> = {
   sem_atividade: "A empresa não tinha atividade neste ano.",
@@ -209,8 +207,8 @@ export function MeiView() {
         <DasModal
           obligation={paying}
           onClose={() => setPaying(null)}
-          onSubmit={(amount, paidOn, proof) => {
-            const r = act((s, c) => registerDasPayment(s, { competence: paying.competence, amountCents: amount, paidOn, proofNote: proof }, c), "Pagamento do DAS registrado.");
+          onSubmit={async (amount, paidOn, proof) => {
+            const r = await act("das.register", { competence: paying.competence, amountCents: amount, paidOn, proofNote: proof }, "Pagamento do DAS registrado.");
             if (r.ok) setPaying(null);
           }}
         />
@@ -219,8 +217,8 @@ export function MeiView() {
         <ImportHistory
           openedOn={t.state.tenant.openedOn}
           onClose={() => setImportOpen(false)}
-          onSubmit={(competenceDate, amount, description) => {
-            const r = act((s, c) => importHistoricalRevenue(s, { competenceDate, amountCents: amount, description }, c), "Histórico importado.");
+          onSubmit={async (competenceDate, amount, description) => {
+            const r = await act("revenue.import", { competenceDate, amountCents: amount, description }, "Histórico importado.");
             if (r.ok) setImportOpen(false);
           }}
         />

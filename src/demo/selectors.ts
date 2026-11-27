@@ -7,6 +7,7 @@ import { limitReport, monthlyRevenue, projectLimit, type LimitStatus } from "@/m
 import { resolveRule } from "@/modules/mei/rules";
 import { dasSchedule, dasnDueDate } from "@/modules/mei/calendar";
 import type { TenantState } from "@/modules/tenants/state";
+import { expiringLots } from "@/modules/inventory/purchases";
 
 export type PeriodKind = "mes" | "mes_anterior" | "ano";
 
@@ -150,6 +151,8 @@ export function alerts(state: TenantState, today: BizDate): Alert[] {
           .join(", ") + (low.length > 2 ? "…" : ""),
       href: "/produtos?filtro=baixo",
     });
+  const lots = expiringLots(state, today, 15);
+  if (lots.length) out.push({ id: "lots", tone: lots.some((l) => l.expired) ? "danger" : "warn", title: `${lots.length} lote${lots.length > 1 ? "s" : ""} com validade próxima`, detail: lots.slice(0, 2).map((l) => l.product.name).join(", "), href: "/produtos" });
   const das = mei.das.find((d) => d.status === "vencido") ?? mei.das.find((d) => d.status === "pendente" && compareBiz(d.nominalDueDate, addDays(today, 10)) <= 0);
   if (das)
     out.push({

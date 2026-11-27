@@ -29,8 +29,8 @@ import { Badge, Button, Card, EmptyState, Field, Input, Modal, MoneyInput, Searc
 import { formatBRL, parseCents, centsToInput } from "@/modules/finance/money";
 import { addDays, formatBizDate, todayBiz } from "@/modules/finance/dates";
 import { stockBalances } from "@/modules/inventory/stock";
-import { checkout, openCashSession } from "@/modules/sales/checkout";
-import { closeSession, drawerTransfer, expectedDrawer, openSession } from "@/modules/sales/cash-session";
+import { openCashSession } from "@/modules/sales/checkout";
+import { expectedDrawer } from "@/modules/sales/cash-session";
 import { PAYMENT_LABEL, type PaymentMethod, type Sale } from "@/modules/sales/types";
 import { whatsappLink } from "@/modules/customers/customer";
 import type { Product } from "@/modules/inventory/stock";
@@ -220,18 +220,11 @@ export function PosView() {
           customers={state.customers}
           hasSession={!!session}
           onClose={() => setPayOpen(false)}
-          onConfirm={(p) => {
-            const r = act((s, c) => {
-              const out = checkout(
-                s,
-                { idempotencyKey: idemKey.current, items: cart.map((l) => ({ productId: l.productId, quantity: l.quantity })), discountCents: discountInvalid ? 0 : discount, ...p },
-                c,
-              );
-              return { state: out.state, value: out.sale };
-            });
+          onConfirm={async (p) => {
+            const r = await act("sale.checkout", { idempotencyKey: idemKey.current, items: cart.map((l) => ({ productId: l.productId, quantity: l.quantity })), discountCents: discountInvalid ? 0 : discount, ...p });
             if (r.ok) {
               setPayOpen(false);
-              setReceipt(r.value);
+              setReceipt(r.value as Sale);
               clear();
             }
           }}
@@ -252,13 +245,13 @@ export function PosView() {
         mode={sessionModal}
         expected={session ? expectedDrawer(state, session.id) : 0}
         onClose={() => setSessionModal(null)}
-        onSubmit={(mode, cents, note) => {
+        onSubmit={async (mode, cents, note) => {
           const r =
             mode === "abrir"
-              ? act((s, c) => openSession(s, cents, c), "Caixa aberto.")
+              ? await act("cash.open", { openingCountCents: cents }, "Caixa aberto.")
               : mode === "fechar"
-                ? act((s, c) => closeSession(s, cents, c), "Caixa fechado.")
-                : act((s, c) => drawerTransfer(s, mode, cents, c, note), mode === "sangria" ? "Sangria registrada." : "Suprimento registrado.");
+                ? await act("cash.close", { countedCents: cents }, "Caixa fechado.")
+                : await act("cash.drawer", { kind: mode, amountCents: cents, note: note || undefined }, mode === "sangria" ? "Sangria registrada." : "Suprimento registrado.");
           if (r.ok) setSessionModal(null);
         }}
       />
@@ -463,9 +456,9 @@ function PaymentModal({
             size="lg"
             disabled={problems.length > 0 || busy}
             loading={busy}
-            onClick={() => {
+            onClick={async () => {
               setBusy(true);
-              onConfirm({
+              await onConfirm({
                 payments: parsed.map((p) => ({ method: p.method, amountCents: p.amountCents! })),
                 cashTenderedCents: cash > 0 ? (tenderedCents ?? cash) : undefined,
                 customerId: customerId || undefined,

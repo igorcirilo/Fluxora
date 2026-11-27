@@ -6,6 +6,9 @@ import { addMonthsClamped, openCents, settle, splitInstallments, type Title, typ
 import { audit, type Ctx, type TenantState } from "@/modules/tenants/state";
 import type { RevenueEntry } from "@/modules/mei/revenue";
 
+/** Títulos de compra de mercadoria: a liquidação não é despesa na DRE (o custo entra pelo CMV). */
+export const INVENTORY_TITLE_CATEGORY = "Mercadorias";
+
 const ALLOWED_MANUAL: readonly CashCategory[] = ["expense", "fee", "other_income", "owner_withdrawal", "capital_contribution", "loan"];
 
 export function addMovement(
@@ -88,7 +91,7 @@ export function settleTitle(state: TenantState, input: { titleId: string; amount
     date: input.date,
     direction: title.kind === "receivable" ? "in" : "out",
     amountCents: input.amountCents,
-    category: title.kind === "receivable" ? "receivable_settlement" : "payable_settlement",
+    category: title.kind === "receivable" ? "receivable_settlement" : title.category === INVENTORY_TITLE_CATEGORY ? "inventory_purchase" : "payable_settlement",
     description: `Liquidação: ${title.description}`,
   };
   const updated = settle(title, { id: ctx.newId("stl"), date: input.date, amountCents: input.amountCents, accountId: input.accountId, movementId: movement.id });

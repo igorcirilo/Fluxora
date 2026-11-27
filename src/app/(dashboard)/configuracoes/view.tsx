@@ -2,12 +2,12 @@
 import { useState } from "react";
 import type { Tenant } from "@/modules/tenants/state";
 import { Building2, Database, Download, History, Monitor, Moon, Palette, RefreshCcw, ShieldCheck, Sun, UserCheck, CreditCard, Info } from "lucide-react";
-import { useTenant, getStore } from "@/demo/use-demo";
+import { useTenant, getStore, getAccountStore, useAccount } from "@/demo/use-demo";
+import { TwoFactorCard } from "@/components/two-factor-card";
 import { useAction } from "@/components/use-action";
 import { downloadText } from "@/components/csv";
 import { applyTheme, getThemePref, type ThemePref } from "@/components/shell/theme";
 import { Badge, Button, Card, CardBody, CardHeader, Field, Input, Modal, PageHeader, Segmented, Select, Switch, useToast } from "@/components/ui";
-import { updateTenant, grantAccountant, revokeAccountant } from "@/modules/tenants/ops";
 import { isLinkActive } from "@/modules/accounting/links";
 import { PLANS } from "@/modules/billing/provider";
 import { formatBRL } from "@/modules/finance/money";
@@ -83,7 +83,7 @@ export function SettingsView() {
                   </div>
                 </div>
                 {isLinkActive(l) ? (
-                  <Button size="sm" variant="outline" onClick={() => act((st, c) => revokeAccountant(st, l.id, c), "Acesso do contador revogado.")}>
+                  <Button size="sm" variant="outline" onClick={() => void act("accountant.revoke", { id: l.id }, "Acesso do contador revogado.")}>
                     Revogar
                   </Button>
                 ) : (
@@ -125,18 +125,28 @@ export function SettingsView() {
               variant="outline"
               className="w-full"
               onClick={() => {
-                const r = getStore()?.exportCurrent();
-                if (r?.ok) downloadText(`fluxora-${s.tenant.id}-${todayBiz()}.json`, r.value);
+                if (t.mode === "demo") {
+                  const r = getStore()?.exportCurrent();
+                  if (r?.ok) downloadText(`fluxora-${s.tenant.id}-${todayBiz()}.json`, r.value);
+                } else downloadText(`fluxora-${s.tenant.id}-${todayBiz()}.json`, JSON.stringify({ exportedAt: new Date().toISOString(), data: s }, null, 2));
               }}
             >
               <Download size={16} /> Exportar todos os dados (JSON)
             </Button>
-            <Button variant="outline" className="w-full" onClick={() => setResetOpen(true)}>
-              <RefreshCcw size={16} /> Restaurar dados de demonstração
-            </Button>
-            <p className="flex gap-2 text-[12px] text-subtle">
-              <ShieldCheck size={14} className="mt-px shrink-0" /> Neste modo, os dados ficam apenas no armazenamento local deste navegador; nada é enviado a servidores.
-            </p>
+            {t.mode === "demo" ? (
+              <>
+                <Button variant="outline" className="w-full" onClick={() => setResetOpen(true)}>
+                  <RefreshCcw size={16} /> Restaurar dados de demonstração
+                </Button>
+                <p className="flex gap-2 text-[12px] text-subtle">
+                  <ShieldCheck size={14} className="mt-px shrink-0" /> Neste modo, os dados ficam apenas no armazenamento local deste navegador; nada é enviado a servidores.
+                </p>
+              </>
+            ) : (
+              <p className="flex gap-2 text-[12px] text-subtle">
+                <ShieldCheck size={14} className="mt-px shrink-0" /> Dados no PostgreSQL com isolamento por empresa. Exclusão de conta e retenção legal: solicitar pelo canal de suporte (em definição).
+              </p>
+            )}
           </CardBody>
         </Card>
 
@@ -159,6 +169,13 @@ export function SettingsView() {
           </CardBody>
         </Card>
       </div>
+
+      {t.mode === "conta" ? (
+        <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <TwoFactorCard />
+          <CompaniesCard />
+        </div>
+      ) : null}
 
       <Card className="mt-4">
         <CardBody className="flex items-start gap-3 text-[12.5px] text-muted">
@@ -217,11 +234,8 @@ function GrantModal({ onClose }: { onClose: () => void }) {
             Cancelar
           </Button>
           <Button
-            onClick={() => {
-              const r = act(
-                (s, c) => grantAccountant(s, { accountantName: f.accountantName, firm: f.firm, email: f.email, scopes: f.exportScope ? ["read", "export"] : ["read"] }, c),
-                "Vínculo criado.",
-              );
+            onClick={async () => {
+              const r = await act("accountant.grant", { accountantName: f.accountantName, firm: f.firm, email: f.email, scopes: f.exportScope ? ["read", "export"] : ["read"] }, "Vínculo criado.");
               if (r.ok) onClose();
             }}
           >
@@ -293,20 +307,41 @@ function CompanyCard({ tenant }: { tenant: Tenant }) {
         <div className="flex justify-end sm:col-span-2">
           <Button
             onClick={() =>
-              act(
-                (st, c) =>
-                  updateTenant(
-                    st,
-                    { name: form.name, tradeName: form.tradeName, openedOn: form.openedOn, segment: form.segment, city: form.city, uf: form.uf, allowNegativeStock: form.allowNegativeStock },
-                    c,
-                  ),
-                "Dados da empresa salvos.",
-              )
+              void act("tenant.update", { name: form.name, tradeName: form.tradeName, openedOn: form.openedOn, segment: form.segment, city: form.city, uf: form.uf, allowNegativeStock: form.allowNegativeStock }, "Dados da empresa salvos.")
             }
           >
             Salvar alterações
           </Button>
         </div>
+      </CardBody>
+    </Card>
+  );
+}
+
+function CompaniesCard() {
+  const acc = useAccount(true);
+  return (
+    <Card>
+      <CardHeader title="Empresas" subtitle="Empresas em que você tem acesso" action={<Building2 size={18} className="text-subtle" />} />
+      <CardBody className="space-y-2">
+        {acc.tenants.map((x) => (
+          <div key={x.id} className="flex items-center justify-between gap-2 rounded-xl border border-line p-3">
+            <div className="min-w-0">
+              <div className="truncate text-[13.5px] font-medium">{x.tradeName}</div>
+              <div className="text-[12px] text-muted">{x.role === "owner" ? "Titular" : x.role === "accountant" ? "Contador" : "Operador"}</div>
+            </div>
+            {x.id === acc.activeTenantId ? (
+              <Badge tone="success">Ativa</Badge>
+            ) : (
+              <Button size="sm" variant="outline" onClick={() => void getAccountStore()?.selectTenant(x.id)}>
+                Usar esta
+              </Button>
+            )}
+          </div>
+        ))}
+        <a href="/conta/empresa" className="block text-center text-[13px] font-medium text-brand">
+          Cadastrar outra empresa
+        </a>
       </CardBody>
     </Card>
   );

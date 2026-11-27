@@ -6,7 +6,6 @@ import { useTenant } from "@/demo/use-demo";
 import { useAction } from "@/components/use-action";
 import { Badge, Button, Card, CardBody, CardHeader, EmptyState, PageHeader, useToast, cn } from "@/components/ui";
 import { FISCAL_DOC_LABEL, FISCAL_STATUS_LABEL, getFiscalProvider, type FiscalStatus } from "@/modules/fiscal/provider";
-import { discardFiscalDraft } from "@/modules/fiscal/ops";
 import { isDomainError } from "@/lib/errors";
 import { formatBRL } from "@/modules/finance/money";
 
@@ -133,7 +132,7 @@ export function FiscalView() {
                       <Button size="sm" variant="outline" loading={sending === d.id} onClick={() => send(d.id)} title="Requer provedor homologado">
                         <Send size={14} /> Enviar
                       </Button>
-                      <Button size="icon" variant="ghost" aria-label="Descartar rascunho" onClick={() => act((s, c) => discardFiscalDraft(s, d.id, c), "Rascunho descartado.")}>
+                      <Button size="icon" variant="ghost" aria-label="Descartar rascunho" onClick={() => void act("fiscal.discard", { id: d.id }, "Rascunho descartado.")}>
                         <Trash2 size={15} />
                       </Button>
                     </div>

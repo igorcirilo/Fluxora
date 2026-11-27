@@ -2,16 +2,16 @@
 import { useCallback } from "react";
 import { useToast } from "@/components/ui";
 import { useTenant } from "@/demo/use-demo";
-import type { Ctx, TenantState } from "@/modules/tenants/state";
+import type { CommandInput, CommandName } from "@/modules/commands";
 
-/** Executa uma operação de domínio no tenant da sessão e mostra feedback. */
+/** Executa um comando (demo ou conta) e mostra feedback. */
 export function useAction() {
   const t = useTenant();
   const toast = useToast();
   return useCallback(
-    <T>(op: (s: TenantState, c: Ctx) => TenantState | { state: TenantState; value: T }, success?: string): { ok: true; value: T } | { ok: false; message: string } => {
+    async <K extends CommandName>(name: K, input: CommandInput<K>, success?: string): Promise<{ ok: true; value: unknown } | { ok: false; message: string }> => {
       if (!t) return { ok: false, message: "Sessão expirada." };
-      const r = t.run<T>(op);
+      const r = await t.exec(name, input);
       if (r.ok) {
         if (success) toast("success", success);
         return { ok: true, value: r.value };

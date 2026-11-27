@@ -2,8 +2,8 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { LogOut, Moon, MoreHorizontal, Sun, FlaskConical, ArrowLeftRight } from "lucide-react";
-import { useDemoDb, useTenant, getStore } from "@/demo/use-demo";
+import { LogOut, Moon, MoreHorizontal, Sun, FlaskConical, ArrowLeftRight, ShieldCheck } from "lucide-react";
+import { useAppStatus, useTenant, getStore, getAccountStore } from "@/demo/use-demo";
 import { cn, Skeleton, ToastProvider } from "@/components/ui";
 import { MOBILE_PRIMARY, NAV } from "./nav";
 import { Logo } from "./logo";
@@ -20,7 +20,7 @@ function initials(name: string) {
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const db = useDemoDb();
+  const app = useAppStatus();
   const t = useTenant();
   const router = useRouter();
   const path = usePathname();
@@ -29,8 +29,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const setMore = (v: boolean) => setMoreAt(v ? path : null);
 
   useEffect(() => {
-    if (db && !t) router.replace("/entrar");
-  }, [db, t, router]);
+    if (app.status === "redirect-demo" || app.status === "disabled") router.replace("/entrar");
+    else if (app.status === "anon") router.replace("/conta");
+    else if (app.status === "no-tenant") router.replace("/conta/empresa");
+  }, [app.status, router]);
 
   if (!t) {
     return (
@@ -44,16 +46,31 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             ))}
           </div>
           <Skeleton className="h-64" />
-          <p className="text-center text-sm text-muted">Preparando dados fictícios de demonstração…</p>
+          {app.status === "error" ? (
+            <div className="mx-auto max-w-sm rounded-2xl border border-line bg-surface p-4 text-center text-sm">
+              <p className="text-danger">Não foi possível carregar seus dados.</p>
+              <button className="mt-2 font-medium text-brand" onClick={() => void getAccountStore()?.refresh()}>
+                Tentar novamente
+              </button>
+            </div>
+          ) : (
+            <p className="text-center text-sm text-muted">{app.mode === "conta" ? "Carregando sua empresa…" : "Preparando dados fictícios de demonstração…"}</p>
+          )}
         </div>
       </div>
     );
   }
 
   const toggleTheme = () => applyTheme(document.documentElement.classList.contains("dark") ? "light" : "dark");
-  const logout = () => {
-    getStore()?.logout();
-    router.replace("/entrar");
+  const demo = t.mode === "demo";
+  const logout = async () => {
+    if (demo) {
+      getStore()?.logout();
+      router.replace("/entrar");
+    } else {
+      await getAccountStore()?.signOut();
+      router.replace("/conta");
+    }
   };
   const active = (href: string) => path === href || path.startsWith(`${href}/`);
 
@@ -97,19 +114,28 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             ))}
           </nav>
           <div className="space-y-2 border-t border-line p-3">
-            <div className="flex items-start gap-2 rounded-xl bg-warn-soft p-3 text-[12px] leading-snug text-warn">
-              <FlaskConical size={15} className="mt-px shrink-0" />
-              <span>
-                <b>Modo demonstração.</b> Dados fictícios salvos só neste navegador.
-              </span>
-            </div>
+            {demo ? (
+              <div className="flex items-start gap-2 rounded-xl bg-warn-soft p-3 text-[12px] leading-snug text-warn">
+                <FlaskConical size={15} className="mt-px shrink-0" />
+                <span>
+                  <b>Modo demonstração.</b> Dados fictícios salvos só neste navegador.
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-start gap-2 rounded-xl bg-accent-soft p-3 text-[12px] leading-snug text-accent">
+                <ShieldCheck size={15} className="mt-px shrink-0" />
+                <span>
+                  <b>Conta real (beta).</b> Dados salvos no servidor, isolados por empresa.
+                </span>
+              </div>
+            )}
             <div className="flex items-center gap-1">
               <div className="min-w-0 flex-1 truncate px-2 text-[12.5px] text-muted">{t.userName}</div>
               <button onClick={toggleTheme} className="rounded-lg p-2 text-muted hover:bg-surface-2 hover:text-fg" aria-label="Alternar tema">
                 <Sun size={16} className="hidden dark:block" />
                 <Moon size={16} className="dark:hidden" />
               </button>
-              <button onClick={logout} className="rounded-lg p-2 text-muted hover:bg-surface-2 hover:text-fg" aria-label="Sair da demonstração">
+              <button onClick={() => void logout()} className="rounded-lg p-2 text-muted hover:bg-surface-2 hover:text-fg" aria-label="Sair da demonstração">
                 <LogOut size={16} />
               </button>
             </div>
@@ -122,9 +148,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Logo withText={false} />
             <div className="min-w-0 flex-1">
               <div className="truncate text-[14px] font-semibold leading-tight">{t.state.tenant.tradeName}</div>
-              <div className="flex items-center gap-1 text-[11px] font-medium text-warn">
-                <FlaskConical size={11} /> Demonstração · dados fictícios
-              </div>
+              {demo ? (
+                <div className="flex items-center gap-1 text-[11px] font-medium text-warn">
+                  <FlaskConical size={11} /> Demonstração · dados fictícios
+                </div>
+              ) : (
+                <div className="flex items-center gap-1 text-[11px] font-medium text-accent">
+                  <ShieldCheck size={11} /> Conta real (beta)
+                </div>
+              )}
             </div>
             <button onClick={toggleTheme} className="rounded-lg p-2 text-muted" aria-label="Alternar tema">
               <Sun size={18} className="hidden dark:block" />
@@ -185,14 +217,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 ))}
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2">
-                <Link href="/entrar" className="flex items-center justify-center gap-2 rounded-xl bg-surface-2 py-3 text-[13px] font-medium">
-                  <ArrowLeftRight size={16} /> Trocar empresa
+                <Link href={demo ? "/entrar" : "/conta/empresa"} className="flex items-center justify-center gap-2 rounded-xl bg-surface-2 py-3 text-[13px] font-medium">
+                  <ArrowLeftRight size={16} /> {demo ? "Trocar empresa" : "Nova empresa"}
                 </Link>
-                <button onClick={logout} className="flex items-center justify-center gap-2 rounded-xl bg-surface-2 py-3 text-[13px] font-medium">
+                <button onClick={() => void logout()} className="flex items-center justify-center gap-2 rounded-xl bg-surface-2 py-3 text-[13px] font-medium">
                   <LogOut size={16} /> Sair
                 </button>
               </div>
-              <p className="mt-3 text-center text-[11.5px] text-muted">{t.userName} · modo demonstração</p>
+              <p className="mt-3 text-center text-[11.5px] text-muted">{t.userName} · {demo ? "modo demonstração" : "conta real"}</p>
             </div>
           </div>
         ) : null}

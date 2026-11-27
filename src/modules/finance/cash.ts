@@ -13,6 +13,7 @@ export type CashCategory =
   | "other_income" // outras entradas operacionais
   | "expense" // despesa paga à vista
   | "payable_settlement" // liquidação de conta a pagar
+  | "inventory_purchase" // pagamento de mercadoria para revenda (vira custo só quando vendida)
   | "fee" // taxas (maquininha, banco)
   | "owner_withdrawal" // retirada do titular (não é despesa operacional)
   | "capital_contribution" // aporte do titular (não é receita)

@@ -4,6 +4,7 @@ import { closeSession, drawerTransfer, expectedDrawer, openSession } from "@/mod
 import { accountBalance } from "@/modules/finance/cash";
 import { addMovement, createTitles, importHistoricalRevenue, settleTitle } from "@/modules/finance/ops";
 import { createProduct, moveStock, type ProductInput } from "@/modules/inventory/ops";
+import { receivePurchase } from "@/modules/inventory/purchases";
 import { ACCOUNT_BANK, ACCOUNT_DRAWER, emptyTenantState, type Ctx, type Tenant, type TenantState } from "@/modules/tenants/state";
 import { openCents } from "@/modules/finance/titles";
 import { competenceKey } from "@/modules/mei/calendar";
@@ -233,6 +234,12 @@ function build(profile: Profile, today: BizDate): TenantState {
     },
     cf,
   );
+  if (profile.tenant.segment === "comercio") {
+    const first = s.products.find((p) => p.trackStock);
+    if (first) {
+      s = receivePurchase(s, { supplierId: "for_1", items: [{ productId: first.id, quantity: 60, unitCostCents: first.costCents + 10, lot: "LT-1126", expiresOn: addDays(today, 6) }], paidNow: false, firstDueDate: addDays(today, 21), installments: 2, document: "NF 4521 (fictícia)" }, cf);
+    }
+  }
   s = {
     ...s,
     accountantLinks: [

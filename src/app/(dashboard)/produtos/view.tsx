@@ -1,7 +1,9 @@
 "use client";
 import { useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
-import { Boxes, Download, PackagePlus, Pencil, Upload, History, ArrowDownUp } from "lucide-react";
+import { Boxes, Download, PackagePlus, Pencil, Upload, History, ArrowDownUp, Truck, CalendarClock } from "lucide-react";
+import { PurchaseModal } from "@/components/purchase-modal";
+import { expiringLots } from "@/modules/inventory/purchases";
 import { useTenant } from "@/demo/use-demo";
 import { safeParse, useAction } from "@/components/use-action";
 import { ProductAvatar } from "@/components/product-avatar";
@@ -10,7 +12,6 @@ import { Badge, Button, Card, EmptyState, Field, Input, Modal, MoneyInput, PageH
 import { centsToInput, formatBRL, parseCents } from "@/modules/finance/money";
 import { formatBizDate, todayBiz } from "@/modules/finance/dates";
 import { STOCK_MOVEMENT_LABEL, stockBalances, type Product } from "@/modules/inventory/stock";
-import { createProduct, moveStock, updateProduct } from "@/modules/inventory/ops";
 import type { TenantState } from "@/modules/tenants/state";
 
 type Filter = "todos" | "baixo" | "servicos" | "inativos";
@@ -23,6 +24,7 @@ export function ProductsView() {
   const [editing, setEditing] = useState<Product | "new" | null>(null);
   const [moving, setMoving] = useState<Product | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [purchaseOpen, setPurchaseOpen] = useState(false);
   const balances = useMemo(() => (t ? stockBalances(t.state.stockMovements) : new Map<string, number>()), [t]);
   if (!t) return null;
   const term = q.trim().toLowerCase();
@@ -68,6 +70,9 @@ export function ProductsView() {
             >
               <Download size={16} /> CSV
             </Button>
+            <Button variant="outline" onClick={() => setPurchaseOpen(true)}>
+              <Truck size={16} /> Entrada de mercadoria
+            </Button>
             <Button onClick={() => setEditing("new")}>
               <PackagePlus size={16} /> Novo produto
             </Button>
@@ -81,6 +86,31 @@ export function ProductsView() {
           <Stat label="Valor em estoque (custo)" value={formatBRL(stockValue)} />
         </div>
       </div>
+      {(() => {
+        const lots = expiringLots(t.state, todayBiz(), 15);
+        if (!lots.length) return null;
+        return (
+          <Card className="mb-4 border-warn/30">
+            <div className="flex items-start gap-3 p-4">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-warn-soft text-warn">
+                <CalendarClock size={18} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="text-[14px] font-semibold">Lotes com validade próxima</div>
+                <ul className="mt-1 space-y-0.5 text-[12.5px] text-muted">
+                  {lots.slice(0, 4).map((l) => (
+                    <li key={l.movement.id}>
+                      {l.product.name}
+                      {l.movement.lot ? ` · lote ${l.movement.lot}` : ""} · {l.expired ? "venceu" : "vence"} em {formatBizDate(l.movement.expiresOn!)}
+                    </li>
+                  ))}
+                </ul>
+                <p className="mt-1 text-[11.5px] text-subtle">Confira o estoque físico: o sistema não sabe quais lotes já foram vendidos.</p>
+              </div>
+            </div>
+          </Card>
+        );
+      })()}
       <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
         <SearchInput className="flex-1" value={q} onChange={setQ} placeholder="Buscar por nome, SKU ou código" />
         <Segmented
@@ -161,6 +191,7 @@ export function ProductsView() {
       {editing ? <ProductForm product={editing === "new" ? null : editing} onClose={() => setEditing(null)} /> : null}
       {moving ? <StockModal product={moving} balance={balances.get(moving.id) ?? 0} state={t.state} onClose={() => setMoving(null)} /> : null}
       {importOpen ? <ImportModal onClose={() => setImportOpen(false)} /> : null}
+      {purchaseOpen ? <PurchaseModal state={t.state} onClose={() => setPurchaseOpen(false)} /> : null}
     </div>
   );
 }
@@ -192,7 +223,7 @@ function ProductForm({ product, onClose }: { product: Product | null; onClose: (
   const price = safeParse(() => parseCents(f.price));
   const cost = f.cost ? safeParse(() => parseCents(f.cost, { allowZero: true })) : 0;
   const margin = price && cost !== null ? Math.round(((price - cost) / price) * 100) : null;
-  const submit = () => {
+  const submit = async () => {
     if (price === null || cost === null) return;
     const base = {
       name: f.name,
@@ -206,8 +237,8 @@ function ProductForm({ product, onClose }: { product: Product | null; onClose: (
       trackStock: f.trackStock,
     };
     const r = product
-      ? act((s, c) => updateProduct(s, product.id, { ...base, active: f.active }, c), "Produto atualizado.")
-      : act((s, c) => createProduct(s, { ...base, initialStock: Number(f.initialStock) || 0 }, c), "Produto cadastrado.");
+      ? await act("product.update", { id: product.id, ...base, active: f.active }, "Produto atualizado.")
+      : await act("product.create", { ...base, initialStock: Number(f.initialStock) || 0 }, "Produto cadastrado.");
     if (r.ok) onClose();
   };
   return (
@@ -295,11 +326,8 @@ function StockModal({ product, balance, state, onClose }: { product: Product; ba
           </Button>
           <Button
             disabled={!valid}
-            onClick={() => {
-              const r = act(
-                (s, c) => moveStock(s, { productId: product.id, type, quantity: n, countedTo: type === "adjustment" ? n : undefined, note: note.trim() || undefined }, c),
-                "Movimento registrado.",
-              );
+            onClick={async () => {
+              const r = await act("stock.move", { productId: product.id, type, quantity: n, countedTo: type === "adjustment" ? n : undefined, note: note.trim() || undefined }, "Movimento registrado.");
               if (r.ok) {
                 setQty("");
                 setNote("");
@@ -342,6 +370,8 @@ function StockModal({ product, balance, state, onClose }: { product: Product; ba
               <span className="block truncate text-[11.5px] text-subtle">
                 {formatBizDate(m.date)}
                 {m.note ? ` · ${m.note}` : ""}
+                {m.lot ? ` · lote ${m.lot}` : ""}
+                {m.expiresOn ? ` · val. ${formatBizDate(m.expiresOn)}` : ""}
               </span>
             </span>
             <span className={cn("font-semibold tabular", m.quantity > 0 ? "text-accent" : "text-danger")}>
@@ -359,7 +389,7 @@ function ImportModal({ onClose }: { onClose: () => void }) {
   const act = useAction();
   const [text, setText] = useState("nome;sku;categoria;preco;custo;estoque\nPão de mel;PMEL-01;Doces;6,50;2,10;40");
   const [report, setReport] = useState<string[] | null>(null);
-  const run = () => {
+  const run = async () => {
     const rows = text
       .split(/\r?\n/)
       .map((l) => l.split(";").map((c) => c.trim()))
@@ -367,18 +397,19 @@ function ImportModal({ onClose }: { onClose: () => void }) {
     const [, ...data] = rows;
     const msgs: string[] = [];
     let ok = 0;
-    data.forEach((r, i) => {
+    for (const [i, r] of data.entries()) {
       const [name = "", sku = "", category = "", price = "", cost = "", stock = ""] = r;
       const priceCents = safeParse(() => parseCents(price));
       const costCents = cost ? safeParse(() => parseCents(cost, { allowZero: true })) : 0;
-      if (priceCents === null || costCents === null) return msgs.push(`Linha ${i + 2}: preço/custo inválido.`);
+      if (priceCents === null || costCents === null) {
+        msgs.push(`Linha ${i + 2}: preço/custo inválido.`);
+        continue;
+      }
       const qty = Number(stock || 0);
-      const res = act((s, c) =>
-        createProduct(s, { name, sku, category, unit: "un", priceCents, costCents, minStock: 0, trackStock: stock !== "", initialStock: Number.isInteger(qty) && qty > 0 ? qty : 0 }, c),
-      );
+      const res = await act("product.create", { name, sku, category, unit: "un", priceCents, costCents, minStock: 0, trackStock: stock !== "", initialStock: Number.isInteger(qty) && qty > 0 ? qty : 0 });
       if (res.ok) ok += 1;
       else msgs.push(`Linha ${i + 2}: ${res.message}`);
-    });
+    }
     setReport([`${ok} produto(s) importado(s).`, ...msgs]);
   };
   return (

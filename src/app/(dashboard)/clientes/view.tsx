@@ -7,9 +7,7 @@ import { Badge, Button, Card, EmptyState, Field, Input, Modal, MoneyInput, PageH
 import { centsToInput, formatBRL, parseCents } from "@/modules/finance/money";
 import { formatBizDate, todayBiz } from "@/modules/finance/dates";
 import { openCents, titleStatus } from "@/modules/finance/titles";
-import { settleTitle } from "@/modules/finance/ops";
 import { formatPhone, whatsappLink, type Customer } from "@/modules/customers/customer";
-import { createCustomer, updateCustomer } from "@/modules/customers/ops";
 import { ACCOUNT_BANK, ACCOUNT_DRAWER, type TenantState } from "@/modules/tenants/state";
 
 type Filter = "todos" | "devendo";
@@ -120,8 +118,8 @@ export function CustomersView() {
 function CustomerForm({ customer, onClose }: { customer: Customer | null; onClose: () => void }) {
   const act = useAction();
   const [f, setF] = useState({ name: customer?.name ?? "", phone: customer?.phone ?? "", email: customer?.email ?? "", notes: customer?.notes ?? "" });
-  const save = () => {
-    const r = customer ? act((s, c) => updateCustomer(s, customer.id, f, c), "Cliente atualizado.") : act((s, c) => createCustomer(s, f, c), "Cliente cadastrado.");
+  const save = async () => {
+    const r = customer ? await act("customer.update", { id: customer.id, ...f }, "Cliente atualizado.") : await act("customer.create", f, "Cliente cadastrado.");
     if (r.ok) onClose();
   };
   return (
@@ -232,8 +230,8 @@ function CustomerDetail({ id, state, onEdit, onClose }: { id: string; state: Ten
                     </Select>
                     <Button
                       disabled={cents === null}
-                      onClick={() => {
-                        const r = act((s, cx) => settleTitle(s, { titleId: ti.id, amountCents: cents!, date: today, accountId: account }, cx), "Recebimento registrado.");
+                      onClick={async () => {
+                        const r = await act("title.settle", { titleId: ti.id, amountCents: cents!, date: today, accountId: account }, "Recebimento registrado.");
                         if (r.ok) setSettling(null);
                       }}
                     >
