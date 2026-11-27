@@ -68,7 +68,7 @@ describe("barramento de comandos", () => {
 
   it("cobre todas as operações de escrita usadas pela interface", () => {
     expect(Object.keys(COMMANDS).sort()).toEqual(
-      ["accountant.grant", "accountant.revoke", "cash.close", "cash.drawer", "cash.open", "customer.create", "customer.update", "das.register", "fiscal.discard", "fiscal.draft", "movement.add", "movement.reverse", "product.create", "product.update", "purchase.receive", "revenue.import", "sale.checkout", "sale.return", "stock.move", "supplier.create", "tenant.update", "title.create", "title.settle", "transfer.create"].sort(),
+      ["accountant.grant", "accountant.revoke", "cash.close", "cash.drawer", "cash.open", "customer.create", "customer.update", "das.register", "fiscal.discard", "fiscal.draft", "fiscal.review", "fiscal.settings", "movement.add", "movement.reverse", "product.create", "product.update", "purchase.receive", "revenue.import", "sale.checkout", "sale.return", "stock.move", "supplier.create", "tenant.update", "title.create", "title.settle", "transfer.create"].sort(),
     );
   });
 });

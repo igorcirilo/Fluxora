@@ -10,6 +10,7 @@ import type { DasPaymentRecord } from "@/modules/mei/calendar";
 import type { FiscalDocument } from "@/modules/fiscal/provider";
 import type { AccountantLink } from "@/modules/accounting/links";
 import type { CashSession, Sale } from "@/modules/sales/types";
+import { DEFAULT_FISCAL_SETTINGS, type FiscalSettings, type ProductFiscal } from "@/modules/fiscal/nfce";
 
 /**
  * Persistência do agregado do tenant no PostgreSQL. Executar SEMPRE dentro de withTenant():
@@ -30,6 +31,7 @@ export async function loadTenantState(c: PoolClient, tenantId: string): Promise<
   const accounts: CashAccount[] = (await q("SELECT * FROM app.accounts WHERE tenant_id = $1 ORDER BY id")).map((r) => ({ id: r.id, name: r.name, kind: r.kind }));
   const products: Product[] = (await q("SELECT * FROM app.products WHERE tenant_id = $1 ORDER BY created_at, id")).map((r) => ({
     id: r.id, sku: r.sku, barcode: opt(r.barcode), name: r.name, category: r.category, unit: r.unit, priceCents: n(r.price_cents), costCents: n(r.cost_cents), minStock: r.min_stock, trackStock: r.track_stock, active: r.active, createdAt: ts(r.created_at),
+    ...(fiscalOf(r) ? { fiscal: fiscalOf(r) } : {}),
   }));
   const stockMovements: StockMovement[] = (await q("SELECT * FROM app.stock_movements WHERE tenant_id = $1 ORDER BY created_at, id")).map((r) => ({
     id: r.id, productId: r.product_id, type: r.type, quantity: r.quantity, date: d(r.movement_date), createdAt: ts(r.created_at), unitCostCents: r.unit_cost_cents === null ? undefined : n(r.unit_cost_cents), sourceId: opt(r.source_id), note: opt(r.note), lot: opt(r.lot), expiresOn: r.expires_on ? d(r.expires_on) : undefined,
@@ -65,10 +67,26 @@ export async function loadTenantState(c: PoolClient, tenantId: string): Promise<
   }));
   const accountantLinks: AccountantLink[] = (await q("SELECT * FROM app.accountant_links WHERE tenant_id = $1 ORDER BY granted_at, id")).map((r) => ({ id: r.id, accountantName: r.accountant_name, firm: r.firm, email: r.email, scopes: r.scopes, grantedAt: ts(r.granted_at), revokedAt: r.revoked_at ? ts(r.revoked_at) : undefined }));
   const audit: AuditEntry[] = (await q("SELECT * FROM (SELECT * FROM app.audit_logs WHERE tenant_id = $1 ORDER BY created_at DESC LIMIT 300) a ORDER BY created_at, id")).map((r) => ({ id: r.id, at: ts(r.created_at), actor: r.actor_user_id ?? "sistema", action: r.action, entity: r.entity, entityId: r.entity_id, details: opt(r.details) }));
+  const [fs] = await q("SELECT * FROM app.fiscal_settings WHERE tenant_id = $1");
+  const fiscal: FiscalSettings = fs
+    ? {
+        uf: fs.uf, ie: opt(fs.ie), environment: fs.environment, series: fs.series, nextNumber: n(fs.next_number), crt: opt(fs.crt), accreditationConfirmedAt: fs.accreditation_confirmed_at ? ts(fs.accreditation_confirmed_at) : undefined,
+        certificateConfigured: fs.certificate_configured, cscConfigured: fs.csc_configured,
+        accountantReview: fs.accountant_review_at ? { name: fs.accountant_review_name, at: ts(fs.accountant_review_at), note: opt(fs.accountant_review_note) } : undefined,
+      }
+    : { ...DEFAULT_FISCAL_SETTINGS };
   const idempotency: Record<string, string> = {};
   for (const r of await q("SELECT scope, key, resource_id FROM app.idempotency_keys WHERE tenant_id = $1")) idempotency[`${r.scope}:${r.key}`] = r.resource_id;
-  return { tenant, accounts, products, stockMovements, customers, suppliers, sales, revenues, movements, titles, cashSessions, dasPayments, fiscalDocuments, accountantLinks, audit, idempotency, seq: { sale: sales.reduce((m, s) => Math.max(m, s.number), 0) } };
+  return { tenant, accounts, products, stockMovements, customers, suppliers, sales, revenues, movements, titles, cashSessions, dasPayments, fiscalDocuments, fiscal, accountantLinks, audit, idempotency, seq: { sale: sales.reduce((m, s) => Math.max(m, s.number), 0) } };
 }
+
+function fiscalOf(r: Record<string, unknown>): ProductFiscal | undefined {
+  const f: ProductFiscal = {};
+  for (const k of ["ncm", "cfop", "csosn", "origem", "cest"] as const) if (r[k]) f[k] = String(r[k]);
+  return Object.keys(f).length ? f : undefined;
+}
+
+const fv = (p: Product) => [p.fiscal?.ncm ?? null, p.fiscal?.cfop ?? null, p.fiscal?.csosn ?? null, p.fiscal?.origem ?? null, p.fiscal?.cest ?? null];
 
 type Diff<T> = { added: T[]; changed: { before: T; after: T }[]; removed: T[] };
 function diffBy<T>(before: readonly T[], after: readonly T[], key: (x: T) => string): Diff<T> {
@@ -115,9 +133,9 @@ export async function persistDiff(c: PoolClient, before: TenantState, after: Ten
   const prd = diffBy(before.products, after.products, (x) => x.id);
   if (prd.removed.length) throw new DomainError("VALIDATION_ERROR", "Produtos são inativados, não removidos.");
   for (const x of prd.added)
-    await ins("INSERT INTO app.products (tenant_id,id,sku,barcode,name,category,unit,price_cents,cost_cents,min_stock,track_stock,active,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)", [x.id, x.sku, x.barcode ?? null, x.name, x.category, x.unit, x.priceCents, x.costCents, x.minStock, x.trackStock, x.active, x.createdAt]);
+    await ins("INSERT INTO app.products (tenant_id,id,sku,barcode,name,category,unit,price_cents,cost_cents,min_stock,track_stock,active,created_at,ncm,cfop,csosn,origem,cest) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)", [x.id, x.sku, x.barcode ?? null, x.name, x.category, x.unit, x.priceCents, x.costCents, x.minStock, x.trackStock, x.active, x.createdAt, ...fv(x)]);
   for (const { after: x } of prd.changed)
-    await ins("UPDATE app.products SET sku=$3, barcode=$4, name=$5, category=$6, unit=$7, price_cents=$8, cost_cents=$9, min_stock=$10, track_stock=$11, active=$12 WHERE tenant_id=$1 AND id=$2", [x.id, x.sku, x.barcode ?? null, x.name, x.category, x.unit, x.priceCents, x.costCents, x.minStock, x.trackStock, x.active]);
+    await ins("UPDATE app.products SET sku=$3, barcode=$4, name=$5, category=$6, unit=$7, price_cents=$8, cost_cents=$9, min_stock=$10, track_stock=$11, active=$12, ncm=$13, cfop=$14, csosn=$15, origem=$16, cest=$17 WHERE tenant_id=$1 AND id=$2", [x.id, x.sku, x.barcode ?? null, x.name, x.category, x.unit, x.priceCents, x.costCents, x.minStock, x.trackStock, x.active, ...fv(x)]);
 
   const cs = diffBy(before.cashSessions, after.cashSessions, (x) => x.id);
   for (const x of cs.added)
@@ -187,6 +205,18 @@ export async function persistDiff(c: PoolClient, before: TenantState, after: Ten
   for (const { before: b, after: x } of fis.changed) {
     await ins("UPDATE app.fiscal_documents SET status=$3, protocol=$4 WHERE tenant_id=$1 AND id=$2", [x.id, x.status, x.protocol ?? null]);
     await insertEvents(x.id, x.events, b.events.length);
+  }
+
+  if (after.fiscal && JSON.stringify(before.fiscal) !== JSON.stringify(after.fiscal)) {
+    const f = after.fiscal;
+    await ins(
+      `INSERT INTO app.fiscal_settings (tenant_id,uf,ie,environment,series,next_number,crt,accreditation_confirmed_at,certificate_configured,csc_configured,accountant_review_name,accountant_review_at,accountant_review_note,updated_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,now())
+       ON CONFLICT (tenant_id) DO UPDATE SET uf=EXCLUDED.uf, ie=EXCLUDED.ie, environment=EXCLUDED.environment, series=EXCLUDED.series, next_number=EXCLUDED.next_number, crt=EXCLUDED.crt,
+         accreditation_confirmed_at=EXCLUDED.accreditation_confirmed_at, certificate_configured=EXCLUDED.certificate_configured, csc_configured=EXCLUDED.csc_configured,
+         accountant_review_name=EXCLUDED.accountant_review_name, accountant_review_at=EXCLUDED.accountant_review_at, accountant_review_note=EXCLUDED.accountant_review_note, updated_at=now()`,
+      [f.uf, f.ie ?? null, f.environment, f.series, f.nextNumber, f.crt ?? null, f.accreditationConfirmedAt ?? null, f.certificateConfigured, f.cscConfigured, f.accountantReview?.name ?? null, f.accountantReview?.at ?? null, f.accountantReview?.note ?? null],
+    );
   }
 
   const lnk = diffBy(before.accountantLinks, after.accountantLinks, (x) => x.id);

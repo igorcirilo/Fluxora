@@ -1,6 +1,7 @@
 import { DomainError } from "@/lib/errors";
 import type { Cents } from "@/modules/finance/money";
 import type { BizDate } from "@/modules/finance/dates";
+import type { ProductFiscal } from "@/modules/fiscal/nfce";
 
 export interface Product {
   id: string;
@@ -15,6 +16,7 @@ export interface Product {
   trackStock: boolean; // serviços não controlam estoque
   active: boolean;
   createdAt: string;
+  fiscal?: ProductFiscal;
 }
 
 /** Movimento de estoque IMUTÁVEL. Correções são novos movimentos de ajuste auditados. */

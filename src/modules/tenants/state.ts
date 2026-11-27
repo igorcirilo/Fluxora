@@ -9,6 +9,7 @@ import type { FiscalDocument } from "@/modules/fiscal/provider";
 import type { AccountantLink } from "@/modules/accounting/links";
 import type { Sale, CashSession } from "@/modules/sales/types";
 import type { BizDate } from "@/modules/finance/dates";
+import { DEFAULT_FISCAL_SETTINGS, type FiscalSettings } from "@/modules/fiscal/nfce";
 
 export interface Tenant {
   id: string;
@@ -51,6 +52,8 @@ export interface TenantState {
   cashSessions: CashSession[];
   dasPayments: DasPaymentRecord[];
   fiscalDocuments: FiscalDocument[];
+  /** Configuração da NFC-e (piloto SP). Opcional para compatibilidade com dados antigos da demo. */
+  fiscal?: FiscalSettings;
   accountantLinks: AccountantLink[];
   audit: AuditEntry[];
   /** chave idempotente (tenant/operação) → id do recurso criado */
@@ -90,6 +93,7 @@ export function emptyTenantState(tenant: Tenant): TenantState {
     cashSessions: [],
     dasPayments: [],
     fiscalDocuments: [],
+    fiscal: { ...DEFAULT_FISCAL_SETTINGS },
     accountantLinks: [],
     audit: [],
     idempotency: {},

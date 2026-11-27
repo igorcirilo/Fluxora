@@ -10,6 +10,7 @@ import { registerDasPayment } from "@/modules/mei/ops";
 import { createFiscalDraft, discardFiscalDraft } from "@/modules/fiscal/ops";
 import { grantAccountant, revokeAccountant, updateTenant } from "@/modules/tenants/ops";
 import { createSupplier, receivePurchase } from "@/modules/inventory/purchases";
+import { setAccountantReview, updateFiscalSettings } from "@/modules/fiscal/settings-ops";
 
 /**
  * Barramento de comandos: a ÚNICA forma de alterar dados de um tenant.
@@ -31,6 +32,9 @@ const productFields = {
   costCents: cents,
   minStock: z.number().int().min(0).max(1_000_000),
   trackStock: z.boolean(),
+  fiscal: z
+    .object({ ncm: text(10).optional(), cfop: text(5).optional(), csosn: text(3).optional(), origem: text(1).optional(), cest: text(9).optional() })
+    .optional(),
 };
 
 type Out<T> = TenantState | { state: TenantState; value: T };
@@ -104,6 +108,20 @@ export const COMMANDS = {
   "das.register": cmd(z.object({ competence: z.string().regex(/^\d{4}-\d{2}$/), amountCents: pos, paidOn: date, proofNote: text(120), accountId: id.optional() }), (s, i, c) => registerDasPayment(s, i, c)),
   "fiscal.draft": cmd(z.object({ saleId: id, type: z.enum(["nfse", "nfce", "nfe"]) }), (s, i, c) => createFiscalDraft(s, i, c)),
   "fiscal.discard": cmd(z.object({ id }), (s, i, c) => discardFiscalDraft(s, i.id, c)),
+  "fiscal.settings": cmd(
+    z.object({
+      ie: text(20).optional(),
+      environment: z.enum(["homologacao", "producao"]),
+      series: z.number().int().min(1).max(999),
+      nextNumber: z.number().int().min(1).max(999_999_999),
+      crt: z.enum(["1", "2", "3", "4"]).optional(),
+      accreditationConfirmed: z.boolean(),
+      certificateConfigured: z.boolean(),
+      cscConfigured: z.boolean(),
+    }),
+    (s, i, c) => updateFiscalSettings(s, i, c),
+  ),
+  "fiscal.review": cmd(z.object({ name: text(120), note: text(300).optional(), confirmed: z.boolean() }), (s, i, c) => setAccountantReview(s, i, c)),
   "tenant.update": cmd(
     z.object({ name: text(150), tradeName: text(80), openedOn: date, segment: z.enum(["comercio", "servicos", "misto"]), city: text(60), uf: text(2), allowNegativeStock: z.boolean() }),
     (s, i, c) => updateTenant(s, i, c),

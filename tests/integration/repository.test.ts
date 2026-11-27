@@ -30,6 +30,7 @@ function normalize(s: TenantState) {
     cashSessions: byId(s.cashSessions),
     dasPayments: [...s.dasPayments].sort((a, b) => (a.competence < b.competence ? -1 : 1)),
     fiscalDocuments: byId(s.fiscalDocuments),
+    fiscal: s.fiscal,
     accountantLinks: byId(s.accountantLinks),
     idempotency: s.idempotency,
     seq: s.seq,
@@ -121,10 +122,30 @@ describe.skipIf(!ADMIN)("repositório PostgreSQL + comandos", () => {
     ).rejects.toThrow(/imutável/);
   }, 60_000);
 
+  it("dados fiscais do produto e configuração NFC-e persistem (com revisão do contador)", async () => {
+    const run = (name: string, input: unknown) =>
+      withTenant(db.pool, { userId: db.userA, tenantId: tenantA }, async (c) => {
+        const before = await loadTenantState(c, tenantA);
+        const out = runCommand(name, input, before, ctxFor(db.userA));
+        await persistDiff(c, before, out.state);
+      });
+    const p = seeded.products[0]!;
+    await run("product.update", { id: p.id, name: p.name, sku: p.sku, category: p.category, unit: p.unit, priceCents: p.priceCents, costCents: p.costCents, minStock: p.minStock, trackStock: p.trackStock, active: true, fiscal: { ncm: "17049090", cfop: "5102", csosn: "102", origem: "0" } });
+    await run("fiscal.settings", { ie: "110.042.490.114", environment: "homologacao", series: 1, nextNumber: 10, crt: "4", accreditationConfirmed: true, certificateConfigured: false, cscConfigured: false });
+    await run("fiscal.review", { name: "Mônica (fictícia)", confirmed: true });
+    const loaded = await withTenant(db.pool, { userId: db.userA, tenantId: tenantA }, (c) => loadTenantState(c, tenantA));
+    expect(loaded.products.find((x) => x.id === p.id)!.fiscal).toEqual({ ncm: "17049090", cfop: "5102", csosn: "102", origem: "0" });
+    expect(loaded.fiscal).toMatchObject({ ie: "110042490114", nextNumber: 10, crt: "4", accountantReview: { name: "Mônica (fictícia)" } });
+    expect(loaded.fiscal!.accreditationConfirmedAt).toBeTruthy();
+    // Produção sem revisão é barrada também pelo banco.
+    await expect(withTenant(db.pool, { userId: db.userA, tenantId: tenantA }, (c) => c.query("UPDATE app.fiscal_settings SET environment = 'producao', accountant_review_at = NULL WHERE tenant_id = $1", [tenantA]))).rejects.toThrow(/check constraint/);
+  }, 60_000);
+
   it("empresa B não lê nada da empresa A e comando em B não toca A", async () => {
     const b = await withTenant(db.pool, { userId: db.userB, tenantId: tenantB }, (c) => loadTenantState(c, tenantB));
     expect(b.sales).toHaveLength(0);
     expect(b.products).toHaveLength(0);
+    expect(b.fiscal?.ie).toBeUndefined();
     await expect(withTenant(db.pool, { userId: db.userB, tenantId: tenantA }, (c) => loadTenantState(c, tenantA))).rejects.toMatchObject({ code: "TENANT_ACCESS_DENIED" });
     await expect(
       withTenant(db.pool, { userId: db.userB, tenantId: tenantB }, async (c) => {

@@ -2,6 +2,7 @@ import { DomainError } from "@/lib/errors";
 import { assertCents, type Cents } from "@/modules/finance/money";
 import { audit, type Ctx, type TenantState } from "@/modules/tenants/state";
 import { makeStockMovement, stockBalance, type Product, type StockMovementType } from "./stock";
+import { normalizeProductFiscal, type ProductFiscal } from "@/modules/fiscal/nfce";
 
 export interface ProductInput {
   name: string;
@@ -14,6 +15,7 @@ export interface ProductInput {
   minStock: number;
   trackStock: boolean;
   initialStock?: number;
+  fiscal?: ProductFiscal;
 }
 
 function validate(state: TenantState, input: ProductInput, ignoreId?: string) {
@@ -44,6 +46,7 @@ export function createProduct(state: TenantState, input: ProductInput, ctx: Ctx)
     trackStock: input.trackStock,
     active: true,
     createdAt: ctx.nowIso,
+    ...(normalizeProductFiscal(input.fiscal) ? { fiscal: normalizeProductFiscal(input.fiscal) } : {}),
   };
   const movements =
     input.trackStock && input.initialStock && input.initialStock > 0
@@ -73,7 +76,11 @@ export function updateProduct(state: TenantState, id: string, input: Omit<Produc
   const current = state.products.find((p) => p.id === id);
   if (!current) throw new DomainError("PRODUCT_NOT_FOUND", "Produto não encontrado.");
   const { name, sku } = validate(state, input, id);
-  const updated: Product = { ...current, ...input, name, sku, barcode: input.barcode || undefined, category: input.category.trim() || "Geral" };
+  const fiscal = normalizeProductFiscal(input.fiscal);
+  const { fiscal: _ignored, ...rest } = input;
+  void _ignored;
+  const updated: Product = { ...current, ...rest, name, sku, barcode: input.barcode || undefined, category: input.category.trim() || "Geral", fiscal };
+  if (!fiscal) delete updated.fiscal;
   return {
     ...state,
     products: state.products.map((p) => (p.id === id ? updated : p)),

@@ -8,6 +8,9 @@ import { Badge, Button, Card, CardBody, CardHeader, EmptyState, PageHeader, useT
 import { FISCAL_DOC_LABEL, FISCAL_STATUS_LABEL, getFiscalProvider, type FiscalStatus } from "@/modules/fiscal/provider";
 import { isDomainError } from "@/lib/errors";
 import { formatBRL } from "@/modules/finance/money";
+import { NfcePanel } from "@/components/nfce-panel";
+import { nfceSaleIssues } from "@/modules/fiscal/nfce";
+import { fiscalSettingsOf } from "@/modules/fiscal/settings-ops";
 
 const DOCS = [
   {
@@ -57,6 +60,11 @@ export function FiscalView() {
         </div>
       </div>
 
+      <div className="mb-4">
+        <NfcePanel state={t.state} providerConfigured={provider.configured} />
+      </div>
+
+      <h2 className="mt-6 mb-3 text-[15px] font-semibold">Documentos fiscais suportados</h2>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {DOCS.map((d) => (
           <Card key={d.type}>
@@ -125,6 +133,9 @@ export function FiscalView() {
                       Venda #{sale?.number ?? "—"} · {sale ? formatBRL(sale.totalCents) : ""}
                     </div>
                     <div className="text-[12px] text-muted">{new Date(d.createdAt).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}</div>
+                    {sale && d.status === "draft" && d.type === "nfce" && nfceSaleIssues(sale, t.state.products, fiscalSettingsOf(t.state)).length ? (
+                      <div className="mt-1 text-[12px] text-warn">Pendências: {nfceSaleIssues(sale, t.state.products, fiscalSettingsOf(t.state)).slice(0, 3).join(" ")}</div>
+                    ) : null}
                   </div>
                   <Badge tone={d.status === "cancelled" ? "neutral" : "brand"}>{FISCAL_STATUS_LABEL[d.status]}</Badge>
                   {d.status === "draft" ? (

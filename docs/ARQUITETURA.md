@@ -62,3 +62,9 @@ Componentes reutilizáveis em `src/components/ui` (botões, cards, modais bottom
 ## Comércio (Etapa 2)
 - **Compras de mercadoria** (`purchase.receive`): entrada no estoque com lote e validade, custo médio ponderado e pagamento à vista (`inventory_purchase`) ou a prazo (contas a pagar categoria "Mercadorias"). Compras não são despesa na DRE: o custo entra pelo CMV quando vendida.
 - **Fornecedores** (`supplier.create`) e alerta de **lotes com validade próxima** (15 dias) no painel e em Produtos. O sistema não rastreia qual lote foi vendido (sem FIFO por lote); o alerta pede conferência física.
+
+## Preparação da NFC-e — SP (Etapa 3)
+- `src/modules/fiscal/nfce.ts`: validação de formato (IE-SP com dígitos verificadores, NCM, CFOP, CSOSN, origem, CEST), configuração (série, numeração, ambiente, CRT) e checklist de prontidão com responsável por item (empresa, contador, Fluxora).
+- Certificado A1 e CSC **nunca** ficam no banco do app: só indicadores de que foram configurados no provedor de emissão.
+- Produção exige revisão do contador registrada (regra no domínio e CHECK no banco, migration 0004).
+- A emissão segue desabilitada (`DisabledFiscalProvider`) até haver provedor homologado. Roteiro para o contador: `docs/CHECKLIST-CONTADOR-NFCE.md`.

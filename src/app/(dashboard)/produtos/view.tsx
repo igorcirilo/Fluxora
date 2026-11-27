@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { Boxes, Download, PackagePlus, Pencil, Upload, History, ArrowDownUp, Truck, CalendarClock } from "lucide-react";
 import { PurchaseModal } from "@/components/purchase-modal";
 import { expiringLots } from "@/modules/inventory/purchases";
+import { CSOSN_OPTIONS, ORIGEM_OPTIONS } from "@/modules/fiscal/nfce";
 import { useTenant } from "@/demo/use-demo";
 import { safeParse, useAction } from "@/components/use-action";
 import { ProductAvatar } from "@/components/product-avatar";
@@ -219,6 +220,11 @@ function ProductForm({ product, onClose }: { product: Product | null; onClose: (
     trackStock: product?.trackStock ?? true,
     active: product?.active ?? true,
     initialStock: "0",
+    ncm: product?.fiscal?.ncm ?? "",
+    cfop: product?.fiscal?.cfop ?? "",
+    csosn: product?.fiscal?.csosn ?? "",
+    origem: product?.fiscal?.origem ?? "",
+    cest: product?.fiscal?.cest ?? "",
   });
   const price = safeParse(() => parseCents(f.price));
   const cost = f.cost ? safeParse(() => parseCents(f.cost, { allowZero: true })) : 0;
@@ -297,6 +303,39 @@ function ProductForm({ product, onClose }: { product: Product | null; onClose: (
           ) : null}
           {product ? <Switch checked={f.active} onChange={(v) => setF({ ...f, active: v })} label="Ativo" description="Inativos não aparecem no PDV; o histórico é mantido." /> : null}
         </div>
+        <details className="rounded-2xl border border-line p-4 sm:col-span-2" open={!!(f.ncm || f.cfop || f.csosn)}>
+          <summary className="cursor-pointer text-[14px] font-medium">Dados fiscais (NFC-e) <span className="font-normal text-muted">· definidos pelo contador</span></summary>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <Field label="NCM" hint="8 dígitos.">{(id) => <Input id={id} inputMode="numeric" maxLength={10} value={f.ncm} onChange={(e) => setF({ ...f, ncm: e.target.value })} placeholder="0000.00.00" />}</Field>
+            <Field label="CFOP" hint="4 dígitos.">{(id) => <Input id={id} inputMode="numeric" maxLength={5} value={f.cfop} onChange={(e) => setF({ ...f, cfop: e.target.value })} placeholder="0000" />}</Field>
+            <Field label="CSOSN">
+              {(id) => (
+                <Select id={id} value={f.csosn} onChange={(e) => setF({ ...f, csosn: e.target.value })}>
+                  <option value="">—</option>
+                  {CSOSN_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </Select>
+              )}
+            </Field>
+            <Field label="Origem da mercadoria">
+              {(id) => (
+                <Select id={id} value={f.origem} onChange={(e) => setF({ ...f, origem: e.target.value })}>
+                  <option value="">—</option>
+                  {ORIGEM_OPTIONS.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </Select>
+              )}
+            </Field>
+            <Field label="CEST (quando aplicável)" hint="7 dígitos." className="sm:col-span-2">{(id) => <Input id={id} inputMode="numeric" maxLength={9} value={f.cest} onChange={(e) => setF({ ...f, cest: e.target.value })} />}</Field>
+          </div>
+          <p className="mt-3 text-[12px] text-subtle">O Fluxora só confere o formato. Quais códigos usar é decisão do contador.</p>
+        </details>
       </div>
     </Modal>
   );

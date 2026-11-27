@@ -44,7 +44,8 @@ Legenda: ✅ feito · 🧪 coberto por teste automatizado · ⏳ pendente · �
 | Barramento de comandos com Zod no servidor | ✅ 🧪 |
 | Repositório com gravação por diferença e histórico imutável | ✅ 🧪 (fidelidade com ~1.500 vendas) |
 | Banco Neon de teste (São Paulo) conectado à Vercel (funções em gru1) | ✅ validado em produção: cadastro, empresa, produto, venda, novo login |
-| FiscalProvider real (sandbox oficial + homologação) | 🚫 sem credenciais/autorização |
+| Preparação NFC-e SP: dados fiscais do produto, IE de SP validada, série/numeração, checklist de prontidão, revisão do contador registrada | ✅ 🧪 (unit + integração + E2E) |
+| FiscalProvider real (sandbox oficial + homologação) | 🚫 aguardando revisão do contador e escolha do provedor |
 | BillingProvider real (PSP com KYC) | 🚫 sem formalização |
 | Worker de fila | ⏳ (tabela pronta) |
 | Docker multi-stage non-root, compose, healthchecks, backup cifrado, teste de restore | ✅ (build no CI) |
