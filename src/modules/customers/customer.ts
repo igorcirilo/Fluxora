@@ -11,7 +11,19 @@ export interface Supplier {
   id: string;
   name: string;
   phone?: string;
+  /** CNPJ ou CPF (somente dígitos) — preenchido pela importação do XML da NF-e */
+  document?: string;
   createdAt: string;
+}
+
+/** Vínculo lembrado: código do item no fornecedor → produto do catálogo, com fator de conversão. */
+export interface SupplierItemLink {
+  supplierId: string;
+  code: string;
+  productId: string;
+  /** unidades de estoque por unidade comercial da nota (ex.: pacote com 12 ⇒ 12) */
+  factor: number;
+  updatedAt: string;
 }
 
 export function onlyDigits(s: string): string {

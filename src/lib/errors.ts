@@ -28,6 +28,7 @@ export type DomainErrorCode =
   | "FISCAL_PROVIDER_NOT_CONFIGURED"
   | "BILLING_PROVIDER_NOT_CONFIGURED"
   | "TENANT_ACCESS_DENIED"
+  | "DOCUMENT_ALREADY_IMPORTED"
   | "VALIDATION_ERROR";
 
 export class DomainError extends Error {

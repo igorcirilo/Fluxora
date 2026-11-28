@@ -1,7 +1,7 @@
 import type { CashAccount, CashMovement } from "@/modules/finance/cash";
 import type { Title } from "@/modules/finance/titles";
 import type { Product, StockMovement } from "@/modules/inventory/stock";
-import type { Customer, Supplier } from "@/modules/customers/customer";
+import type { Customer, Supplier, SupplierItemLink } from "@/modules/customers/customer";
 import type { RevenueEntry } from "@/modules/mei/revenue";
 import type { MeiRegime } from "@/modules/mei/rules";
 import type { DasPaymentRecord } from "@/modules/mei/calendar";
@@ -45,6 +45,8 @@ export interface TenantState {
   stockMovements: StockMovement[];
   customers: Customer[];
   suppliers: Supplier[];
+  /** Código do item no fornecedor → produto. Opcional para compatibilidade com dados antigos da demo. */
+  supplierItems?: SupplierItemLink[];
   sales: Sale[];
   revenues: RevenueEntry[];
   movements: CashMovement[];
@@ -86,6 +88,7 @@ export function emptyTenantState(tenant: Tenant): TenantState {
     stockMovements: [],
     customers: [],
     suppliers: [],
+    supplierItems: [],
     sales: [],
     revenues: [],
     movements: [],

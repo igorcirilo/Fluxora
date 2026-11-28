@@ -1,4 +1,4 @@
-# Matriz implementado / testado / pendente — v0.2 (27/11/2026)
+# Matriz implementado / testado / pendente — v0.3 (28/11/2026)
 
 Legenda: ✅ feito · 🧪 coberto por teste automatizado · ⏳ pendente · 🚫 fora do escopo sem autorização/homologação
 
@@ -27,7 +27,8 @@ Legenda: ✅ feito · 🧪 coberto por teste automatizado · ⏳ pendente · �
 | Tema escuro, PWA manifest | ✅ — service worker/IndexedDB offline ⏳ |
 | Comprovante não fiscal + WhatsApp por link | ✅ |
 | Compras de mercadoria, fornecedores, lote, validade, custo médio | ✅ 🧪 |
-| Variantes, kits, FIFO por lote, importação XML de NF-e | ⏳ |
+| Importação do XML da NF-e de compra: fornecedor por CNPJ, itens por vínculo lembrado/código de barras/SKU, criação de produto com NCM, fator de embalagem, lotes/validade, custo com desconto/frete/IPI/ST, contas a pagar pelas duplicatas, nota repetida barrada | ✅ 🧪 (unit + integração + E2E) |
+| Variantes, kits, FIFO por lote | ⏳ |
 | Serviços: agenda, profissionais, comissão, orçamento PDF, OS | ⏳ |
 | Catálogo público com QR | ⏳ |
 | Painel do contador: convite por e-mail + código de uso único (5 tentativas, 7 dias), somente leitura garantido pelo banco, revogação imediata, resumo por empresa, exportação CSV/JSON | ✅ 🧪 (integração + E2E) |
@@ -56,3 +57,4 @@ Legenda: ✅ feito · 🧪 coberto por teste automatizado · ⏳ pendente · �
 - Sem autenticação: qualquer pessoa com o link vê a demo (somente dados fictícios).
 - Valores de DAS, taxas e contador do seed são fictícios.
 - Homologação fiscal e revisão contábil não podem ser substituídas por testes.
+- Importação de NF-e: a assinatura digital do XML não é validada (o app confere estrutura, chave de acesso e protocolo de autorização). A nota de exemplo da demo é fictícia.

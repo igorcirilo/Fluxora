@@ -46,14 +46,39 @@ export function reverseMovement(state: TenantState, movementId: string, ctx: Ctx
 
 export function createTitles(
   state: TenantState,
-  input: { kind: TitleKind; description: string; counterpartyId?: string; competenceDate: BizDate; firstDueDate: BizDate; totalCents: Cents; installments: number; category?: string },
+  input: {
+    kind: TitleKind;
+    description: string;
+    counterpartyId?: string;
+    competenceDate: BizDate;
+    firstDueDate: BizDate;
+    totalCents: Cents;
+    installments: number;
+    category?: string;
+    /** Vencimentos e valores exatos (ex.: duplicatas da NF-e). Soma deve ser igual a totalCents. */
+    schedule?: { dueDate: BizDate; amountCents: Cents }[];
+  },
   ctx: Ctx,
 ): TenantState {
   assertBizDate(input.competenceDate);
   assertBizDate(input.firstDueDate);
   const desc = input.description.trim();
   if (!desc) throw new DomainError("VALIDATION_ERROR", "Descrição obrigatória.");
-  const parts = splitInstallments(input.totalCents, input.installments);
+  let parts: Cents[];
+  let dueDates: BizDate[];
+  if (input.schedule?.length) {
+    if (input.schedule.length > 48) throw new DomainError("VALIDATION_ERROR", "Máximo de 48 parcelas.");
+    for (const p of input.schedule) {
+      assertBizDate(p.dueDate);
+      assertCents(p.amountCents);
+    }
+    parts = input.schedule.map((p) => p.amountCents);
+    if (parts.reduce((a, b) => a + b, 0) !== input.totalCents) throw new DomainError("PAYMENT_MISMATCH", "A soma das parcelas difere do total.");
+    dueDates = input.schedule.map((p) => p.dueDate);
+  } else {
+    parts = splitInstallments(input.totalCents, input.installments);
+    dueDates = parts.map((_, i) => addMonthsClamped(input.firstDueDate, i));
+  }
   const groupId = ctx.newId("grp");
   const titles: Title[] = parts.map((amount, i) => ({
     id: ctx.newId("tit"),
@@ -61,7 +86,7 @@ export function createTitles(
     description: parts.length > 1 ? `${desc} (${i + 1}/${parts.length})` : desc,
     counterpartyId: input.counterpartyId,
     competenceDate: input.competenceDate,
-    dueDate: addMonthsClamped(input.firstDueDate, i),
+    dueDate: dueDates[i]!,
     amountCents: amount,
     installment: parts.length > 1 ? { number: i + 1, of: parts.length, groupId } : undefined,
     category: input.category,

@@ -4,6 +4,7 @@ import { isDomainError, type DomainErrorCode } from "./errors";
 
 const STATUS: Partial<Record<DomainErrorCode, number>> = {
   TENANT_ACCESS_DENIED: 403,
+  DOCUMENT_ALREADY_IMPORTED: 409,
   FISCAL_PROVIDER_NOT_CONFIGURED: 503,
   BILLING_PROVIDER_NOT_CONFIGURED: 503,
   RULE_NOT_FOUND: 422,

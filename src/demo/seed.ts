@@ -82,7 +82,7 @@ function build(profile: Profile, today: BizDate): TenantState {
   const start = profile.tenant.openedOn > addDays(today, -profile.days) ? profile.tenant.openedOn : addDays(today, -profile.days);
   let s = emptyTenantState(profile.tenant);
   const c0 = mk(start, 8);
-  s = { ...s, customers: customers(rand, 12, c0.nowIso), suppliers: [{ id: "for_1", name: "Distribuidora Exemplo (fictícia)", createdAt: c0.nowIso }] };
+  s = { ...s, customers: customers(rand, 12, c0.nowIso), suppliers: [{ id: "for_1", name: "Distribuidora Exemplo (fictícia)", document: "11222333000181", createdAt: c0.nowIso }] };
   s = addMovement(s, { accountId: ACCOUNT_BANK, date: start, direction: "in", amountCents: 350_000, category: "capital_contribution", description: "Aporte inicial do titular" }, c0);
   s = {
     ...s,

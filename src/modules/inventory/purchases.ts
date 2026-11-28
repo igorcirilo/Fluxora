@@ -32,6 +32,9 @@ export interface PurchaseInput {
   installments?: number;
   updateCost?: boolean;
   document?: string;
+  /** Uso interno (importação de NF-e): id fixo da compra e pagamento pelo valor/duplicatas da nota. */
+  purchaseId?: string;
+  payment?: { totalCents: Cents; schedule?: { dueDate: BizDate; amountCents: Cents }[]; description?: string };
 }
 
 /**
@@ -42,7 +45,7 @@ export interface PurchaseInput {
 export function receivePurchase(state: TenantState, input: PurchaseInput, ctx: Ctx): TenantState {
   if (!input.items.length) throw new DomainError("EMPTY_CART", "Informe ao menos um item.");
   if (input.supplierId && !state.suppliers.some((s) => s.id === input.supplierId)) throw new DomainError("VALIDATION_ERROR", "Fornecedor não encontrado.");
-  const purchaseId = ctx.newId("cmp");
+  const purchaseId = input.purchaseId ?? ctx.newId("cmp");
   const movements: StockMovement[] = [];
   let products = state.products;
   for (const it of input.items) {
@@ -75,9 +78,9 @@ export function receivePurchase(state: TenantState, input: PurchaseInput, ctx: C
       products = products.map((p) => (p.id === product.id ? { ...p, costCents: cost } : p));
     }
   }
-  const total = sumCents(input.items.map((i) => i.quantity * i.unitCostCents));
+  const total = input.payment ? input.payment.totalCents : sumCents(input.items.map((i) => i.quantity * i.unitCostCents));
   const supplierName = state.suppliers.find((s) => s.id === input.supplierId)?.name;
-  const description = `Compra de mercadorias${input.document ? ` ${input.document.trim()}` : ""}${supplierName ? ` — ${supplierName}` : ""}`;
+  const description = input.payment?.description ?? `Compra de mercadorias${input.document ? ` ${input.document.trim()}` : ""}${supplierName ? ` — ${supplierName}` : ""}`;
   let next: TenantState = { ...state, products, stockMovements: [...state.stockMovements, ...movements] };
   if (total > 0) {
     assertCents(total);
@@ -87,7 +90,7 @@ export function receivePurchase(state: TenantState, input: PurchaseInput, ctx: C
       const m: CashMovement = { id: ctx.newId("mov"), accountId, date: ctx.today, direction: "out", amountCents: total, category: "inventory_purchase", description, sourceId: purchaseId };
       next = { ...next, movements: [...next.movements, m] };
     } else {
-      next = createTitles(next, { kind: "payable", description, counterpartyId: input.supplierId, competenceDate: ctx.today, firstDueDate: input.firstDueDate ?? addDays(ctx.today, 30), totalCents: total, installments: input.installments ?? 1, category: INVENTORY_TITLE_CATEGORY }, ctx);
+      next = createTitles(next, { kind: "payable", description, counterpartyId: input.supplierId, competenceDate: ctx.today, firstDueDate: input.firstDueDate ?? addDays(ctx.today, 30), totalCents: total, installments: input.installments ?? 1, category: INVENTORY_TITLE_CATEGORY, schedule: input.payment?.schedule }, ctx);
     }
   }
   return { ...next, audit: [...next.audit, audit(state, ctx, "purchase.receive", "purchase", purchaseId, `${input.items.length} item(ns) total ${total}`)] };

@@ -4,6 +4,7 @@ import { withTenant, withUser } from "@/lib/db/tenant-tx";
 import { loadTenantState, persistDiff } from "@/lib/db/tenant-repo";
 import { runCommand } from "@/modules/commands";
 import { seedDoceria } from "@/demo/seed";
+import { demoSampleNfeXml } from "@/demo/sample-nfe";
 import { limitReport } from "@/modules/mei/limit";
 import { stockBalance } from "@/modules/inventory/stock";
 import { makeCtx, type TenantState } from "@/modules/tenants/state";
@@ -23,6 +24,7 @@ function normalize(s: TenantState) {
     stockMovements: byId(s.stockMovements),
     customers: byId(s.customers),
     suppliers: byId(s.suppliers),
+    supplierItems: [...(s.supplierItems ?? [])].sort((a, b) => (`${a.supplierId}:${a.code}` < `${b.supplierId}:${b.code}` ? -1 : 1)),
     sales: byId(s.sales),
     revenues: byId(s.revenues),
     movements: byId(s.movements),
@@ -140,6 +142,45 @@ describe.skipIf(!ADMIN)("repositório PostgreSQL + comandos", () => {
     expect(loaded.fiscal!.accreditationConfirmedAt).toBeTruthy();
     // Produção sem revisão é barrada também pelo banco.
     await expect(withTenant(db.pool, { userId: db.userA, tenantId: tenantA }, (c) => c.query("UPDATE app.fiscal_settings SET environment = 'producao', accountant_review_at = NULL WHERE tenant_id = $1", [tenantA]))).rejects.toThrow(/check constraint/);
+  }, 60_000);
+
+  it("importação de NF-e: grava fornecedor, vínculos, estoque e duplicatas; repetição é barrada", async () => {
+    const run = (name: string, input: unknown) =>
+      withTenant(db.pool, { userId: db.userA, tenantId: tenantA }, async (c) => {
+        await c.query("SELECT 1 FROM app.tenants WHERE id = $1 FOR UPDATE", [tenantA]);
+        const before = await loadTenantState(c, tenantA);
+        const out = runCommand(name, input, before, ctxFor(db.userA));
+        await persistDiff(c, before, out.state);
+        return { before, out };
+      });
+    const brig = seeded.products.find((p) => p.sku === "BRIG-01")!;
+    const caixa = seeded.products.find((p) => p.sku === "CXPR-07")!;
+    const input = {
+      xml: demoSampleNfeXml("2026-11-26"),
+      items: [
+        { n: 1, action: "link", productId: brig.id, factor: 1 },
+        { n: 2, action: "create", factor: 1, product: { name: "Embalagem PET p/ 4 doces", sku: "DX-EMB4", category: "Embalagens", unit: "un", priceCents: 90, minStock: 20 } },
+        { n: 3, action: "link", productId: caixa.id, factor: 12 },
+      ],
+      paidNow: false,
+    };
+    const { out } = await run("purchase.importNfe", input);
+    const loaded = await withTenant(db.pool, { userId: db.userA, tenantId: tenantA }, (c) => loadTenantState(c, tenantA));
+    expect(normalize(loaded)).toEqual(normalize(out.state));
+    expect(loaded.suppliers.find((s) => s.id === "for_1")!.document).toBe("11222333000181");
+    expect(loaded.supplierItems).toHaveLength(3);
+    expect(loaded.titles.filter((t) => t.description.includes("NF-e 7781")).map((t) => t.amountCents)).toEqual([21900, 21900]);
+    await expect(run("purchase.importNfe", input)).rejects.toMatchObject({ code: "DOCUMENT_ALREADY_IMPORTED" });
+    // Vínculo repetido para o mesmo fornecedor/código é barrado também pelo banco.
+    await expect(
+      withTenant(db.pool, { userId: db.userA, tenantId: tenantA }, (c) => c.query("INSERT INTO app.supplier_item_links (tenant_id, supplier_id, code, product_id) VALUES ($1, 'for_1', 'DX-BRIG', $2)", [tenantA, brig.id])),
+    ).rejects.toThrow(/duplicate key/);
+    // Empresa B não enxerga os vínculos de A, e não consegue gravar vínculo apontando para A.
+    const bLinks = await withTenant(db.pool, { userId: db.userB, tenantId: tenantB }, async (c) => (await c.query("SELECT count(*)::int AS n FROM app.supplier_item_links")).rows[0].n);
+    expect(bLinks).toBe(0);
+    await expect(
+      withTenant(db.pool, { userId: db.userB, tenantId: tenantB }, (c) => c.query("INSERT INTO app.supplier_item_links (tenant_id, supplier_id, code, product_id) VALUES ($1, 'for_1', 'X', $2)", [tenantA, brig.id])),
+    ).rejects.toThrow(/row-level security/);
   }, 60_000);
 
   it("empresa B não lê nada da empresa A e comando em B não toca A", async () => {

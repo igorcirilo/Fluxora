@@ -10,6 +10,8 @@ import { registerDasPayment } from "@/modules/mei/ops";
 import { createFiscalDraft, discardFiscalDraft } from "@/modules/fiscal/ops";
 import { grantAccountant, revokeAccountant, updateTenant } from "@/modules/tenants/ops";
 import { createSupplier, receivePurchase } from "@/modules/inventory/purchases";
+import { importNfe } from "@/modules/inventory/nfe-import";
+import { NFE_XML_MAX_CHARS } from "@/modules/inventory/nfe-xml";
 import { setAccountantReview, updateFiscalSettings } from "@/modules/fiscal/settings-ops";
 
 /**
@@ -85,6 +87,29 @@ export const COMMANDS = {
       document: text(60).optional(),
     }),
     (s, i, c) => receivePurchase(s, i, c),
+  ),
+  "purchase.importNfe": cmd(
+    z.object({
+      xml: z.string().min(50).max(NFE_XML_MAX_CHARS),
+      supplierId: id.optional(),
+      items: z
+        .array(
+          z.object({
+            n: z.number().int().min(1).max(999),
+            action: z.enum(["link", "create", "ignore"]),
+            productId: id.optional(),
+            factor: z.number().int().min(1).max(10_000),
+            product: z.object({ name: text(120), sku: text(30), category: text(40), unit: productFields.unit, priceCents: pos, minStock: productFields.minStock }).optional(),
+          }),
+        )
+        .min(1)
+        .max(200),
+      paidNow: z.boolean(),
+      accountId: id.optional(),
+      dueDate: date.optional(),
+      updateCost: z.boolean().optional(),
+    }),
+    (s, i, c) => importNfe(s, i, c),
   ),
   "title.create": cmd(
     z.object({ kind: z.enum(["receivable", "payable"]), description: text(150), counterpartyId: id.optional(), competenceDate: date, firstDueDate: date, totalCents: pos, installments: z.number().int().min(1).max(48), category: text(40).optional() }),

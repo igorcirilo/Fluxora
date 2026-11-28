@@ -29,7 +29,7 @@ export interface DemoDb {
   session: { userId: string; tenantId: string } | null;
 }
 
-export const DB_VERSION = 5;
+export const DB_VERSION = 6;
 export const STORAGE_KEY = "fluxora.demo.v5";
 
 export interface KeyValueStorage {

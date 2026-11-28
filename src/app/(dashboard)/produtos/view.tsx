@@ -1,8 +1,9 @@
 "use client";
 import { useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
-import { Boxes, Download, PackagePlus, Pencil, Upload, History, ArrowDownUp, Truck, CalendarClock } from "lucide-react";
+import { Boxes, Download, PackagePlus, Pencil, Upload, History, ArrowDownUp, Truck, CalendarClock, FileUp } from "lucide-react";
 import { PurchaseModal } from "@/components/purchase-modal";
+import { NfeImportModal } from "@/components/nfe-import-modal";
 import { expiringLots } from "@/modules/inventory/purchases";
 import { CSOSN_OPTIONS, ORIGEM_OPTIONS } from "@/modules/fiscal/nfce";
 import { useTenant } from "@/demo/use-demo";
@@ -26,6 +27,7 @@ export function ProductsView() {
   const [moving, setMoving] = useState<Product | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [purchaseOpen, setPurchaseOpen] = useState(false);
+  const [nfeOpen, setNfeOpen] = useState(false);
   const balances = useMemo(() => (t ? stockBalances(t.state.stockMovements) : new Map<string, number>()), [t]);
   if (!t) return null;
   const term = q.trim().toLowerCase();
@@ -70,6 +72,9 @@ export function ProductsView() {
               }
             >
               <Download size={16} /> CSV
+            </Button>
+            <Button variant="outline" onClick={() => setNfeOpen(true)}>
+              <FileUp size={16} /> Importar XML da nota
             </Button>
             <Button variant="outline" onClick={() => setPurchaseOpen(true)}>
               <Truck size={16} /> Entrada de mercadoria
@@ -193,6 +198,7 @@ export function ProductsView() {
       {moving ? <StockModal product={moving} balance={balances.get(moving.id) ?? 0} state={t.state} onClose={() => setMoving(null)} /> : null}
       {importOpen ? <ImportModal onClose={() => setImportOpen(false)} /> : null}
       {purchaseOpen ? <PurchaseModal state={t.state} onClose={() => setPurchaseOpen(false)} /> : null}
+      {nfeOpen ? <NfeImportModal state={t.state} isDemo={t.mode === "demo"} onClose={() => setNfeOpen(false)} /> : null}
     </div>
   );
 }

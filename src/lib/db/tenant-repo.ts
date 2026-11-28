@@ -4,7 +4,7 @@ import type { Tenant, TenantState, AuditEntry } from "@/modules/tenants/state";
 import type { CashAccount, CashMovement } from "@/modules/finance/cash";
 import type { Title } from "@/modules/finance/titles";
 import type { Product, StockMovement } from "@/modules/inventory/stock";
-import type { Customer, Supplier } from "@/modules/customers/customer";
+import type { Customer, Supplier, SupplierItemLink } from "@/modules/customers/customer";
 import type { RevenueEntry } from "@/modules/mei/revenue";
 import type { DasPaymentRecord } from "@/modules/mei/calendar";
 import type { FiscalDocument } from "@/modules/fiscal/provider";
@@ -37,7 +37,8 @@ export async function loadTenantState(c: PoolClient, tenantId: string): Promise<
     id: r.id, productId: r.product_id, type: r.type, quantity: r.quantity, date: d(r.movement_date), createdAt: ts(r.created_at), unitCostCents: r.unit_cost_cents === null ? undefined : n(r.unit_cost_cents), sourceId: opt(r.source_id), note: opt(r.note), lot: opt(r.lot), expiresOn: r.expires_on ? d(r.expires_on) : undefined,
   }));
   const customers: Customer[] = (await q("SELECT * FROM app.customers WHERE tenant_id = $1 ORDER BY created_at, id")).map((r) => ({ id: r.id, name: r.name, phone: opt(r.phone), email: opt(r.email), notes: opt(r.notes), createdAt: ts(r.created_at) }));
-  const suppliers: Supplier[] = (await q("SELECT * FROM app.suppliers WHERE tenant_id = $1 ORDER BY created_at, id")).map((r) => ({ id: r.id, name: r.name, phone: opt(r.phone), createdAt: ts(r.created_at) }));
+  const suppliers: Supplier[] = (await q("SELECT * FROM app.suppliers WHERE tenant_id = $1 ORDER BY created_at, id")).map((r) => ({ id: r.id, name: r.name, phone: opt(r.phone), document: opt(r.document), createdAt: ts(r.created_at) }));
+  const supplierItems: SupplierItemLink[] = (await q("SELECT * FROM app.supplier_item_links WHERE tenant_id = $1 ORDER BY supplier_id, code")).map((r) => ({ supplierId: r.supplier_id, code: r.code, productId: r.product_id, factor: n(r.factor), updatedAt: ts(r.updated_at) }));
 
   const items = await q("SELECT * FROM app.sale_items WHERE tenant_id = $1 ORDER BY id");
   const pays = await q("SELECT * FROM app.payments WHERE tenant_id = $1 ORDER BY id");
@@ -86,7 +87,7 @@ export async function loadTenantState(c: PoolClient, tenantId: string): Promise<
     : { ...DEFAULT_FISCAL_SETTINGS };
   const idempotency: Record<string, string> = {};
   for (const r of await q("SELECT scope, key, resource_id FROM app.idempotency_keys WHERE tenant_id = $1")) idempotency[`${r.scope}:${r.key}`] = r.resource_id;
-  return { tenant, accounts, products, stockMovements, customers, suppliers, sales, revenues, movements, titles, cashSessions, dasPayments, fiscalDocuments, fiscal, accountantLinks, audit, idempotency, seq: { sale: sales.reduce((m, s) => Math.max(m, s.number), 0) } };
+  return { tenant, accounts, products, stockMovements, customers, suppliers, supplierItems, sales, revenues, movements, titles, cashSessions, dasPayments, fiscalDocuments, fiscal, accountantLinks, audit, idempotency, seq: { sale: sales.reduce((m, s) => Math.max(m, s.number), 0) } };
 }
 
 function fiscalOf(r: Record<string, unknown>): ProductFiscal | undefined {
@@ -133,8 +134,9 @@ export async function persistDiff(c: PoolClient, before: TenantState, after: Ten
   for (const { after: x } of cus.changed) await ins("UPDATE app.customers SET name=$3, phone=$4, email=$5, notes=$6 WHERE tenant_id=$1 AND id=$2", [x.id, x.name, x.phone ?? null, x.email ?? null, x.notes ?? null]);
 
   const sup = diffBy(before.suppliers, after.suppliers, (x) => x.id);
-  for (const x of sup.added) await ins("INSERT INTO app.suppliers (tenant_id,id,name,phone,created_at) VALUES ($1,$2,$3,$4,$5)", [x.id, x.name, x.phone ?? null, x.createdAt]);
-  for (const { after: x } of sup.changed) await ins("UPDATE app.suppliers SET name=$3, phone=$4 WHERE tenant_id=$1 AND id=$2", [x.id, x.name, x.phone ?? null]);
+  if (sup.removed.length) throw new DomainError("VALIDATION_ERROR", "Fornecedores não podem ser removidos por comando.");
+  for (const x of sup.added) await ins("INSERT INTO app.suppliers (tenant_id,id,name,phone,document,created_at) VALUES ($1,$2,$3,$4,$5,$6)", [x.id, x.name, x.phone ?? null, x.document ?? null, x.createdAt]);
+  for (const { after: x } of sup.changed) await ins("UPDATE app.suppliers SET name=$3, phone=$4, document=$5 WHERE tenant_id=$1 AND id=$2", [x.id, x.name, x.phone ?? null, x.document ?? null]);
 
   const acc = diffBy(before.accounts, after.accounts, (x) => x.id);
   for (const x of acc.added) await ins("INSERT INTO app.accounts (tenant_id,id,name,kind) VALUES ($1,$2,$3,$4)", [x.id, x.name, x.kind]);
@@ -145,6 +147,12 @@ export async function persistDiff(c: PoolClient, before: TenantState, after: Ten
     await ins("INSERT INTO app.products (tenant_id,id,sku,barcode,name,category,unit,price_cents,cost_cents,min_stock,track_stock,active,created_at,ncm,cfop,csosn,origem,cest) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)", [x.id, x.sku, x.barcode ?? null, x.name, x.category, x.unit, x.priceCents, x.costCents, x.minStock, x.trackStock, x.active, x.createdAt, ...fv(x)]);
   for (const { after: x } of prd.changed)
     await ins("UPDATE app.products SET sku=$3, barcode=$4, name=$5, category=$6, unit=$7, price_cents=$8, cost_cents=$9, min_stock=$10, track_stock=$11, active=$12, ncm=$13, cfop=$14, csosn=$15, origem=$16, cest=$17 WHERE tenant_id=$1 AND id=$2", [x.id, x.sku, x.barcode ?? null, x.name, x.category, x.unit, x.priceCents, x.costCents, x.minStock, x.trackStock, x.active, ...fv(x)]);
+
+  // Vínculos fornecedor→produto (depois de produtos e fornecedores, por causa das FKs).
+  const sil = diffBy(before.supplierItems ?? [], after.supplierItems ?? [], (x) => `${x.supplierId}\u0000${x.code}`);
+  if (sil.removed.length) throw new DomainError("VALIDATION_ERROR", "Vínculos de itens do fornecedor não são removidos por comando.");
+  for (const x of sil.added) await ins("INSERT INTO app.supplier_item_links (tenant_id,supplier_id,code,product_id,factor,updated_at) VALUES ($1,$2,$3,$4,$5,$6)", [x.supplierId, x.code, x.productId, x.factor, x.updatedAt]);
+  for (const { after: x } of sil.changed) await ins("UPDATE app.supplier_item_links SET product_id=$4, factor=$5, updated_at=$6 WHERE tenant_id=$1 AND supplier_id=$2 AND code=$3", [x.supplierId, x.code, x.productId, x.factor, x.updatedAt]);
 
   const cs = diffBy(before.cashSessions, after.cashSessions, (x) => x.id);
   for (const x of cs.added)
